@@ -1,5 +1,6 @@
-import { Autowired, Controller, Post, reply, type Ctx } from '@forinda/kickjs'
+import { Autowired, Controller, Get, Post, reply, type Ctx } from '@forinda/kickjs'
 import { ApiTags } from '@forinda/kickjs-swagger'
+import { CurrentUser } from '../../contributors/current-user.contributor'
 import { AuthService } from './auth.service'
 import { signupSchema } from './dtos/signup.dto'
 import { loginSchema } from './dtos/login.dto'
@@ -18,5 +19,14 @@ export class AuthController {
   @ApiTags('Auth')
   async login(ctx: Ctx) {
     return this.auth.login(ctx.body)
+  }
+
+  // Applied per-method, not on the class: signup and login live on this same
+  // controller and must stay reachable without a token.
+  @Get('/me')
+  @ApiTags('Auth')
+  @CurrentUser
+  async me(ctx: Ctx) {
+    return ctx.require('currentUser')
   }
 }

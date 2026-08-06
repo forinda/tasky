@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import request from 'supertest'
-import { Container } from '@forinda/kickjs'
+import { ConfigService, Container } from '@forinda/kickjs'
 import { createTestApp } from '@forinda/kickjs-testing'
+import { SignJWT } from 'jose'
 import { SqliteAdapter } from '../../../adapters/sqlite.adapter'
 import { AuthModule } from '../auth.module'
 
@@ -107,5 +108,87 @@ describe('POST /api/v1/auth/login', () => {
     expect(unknownEmail.status).toBe(401)
     // Identical bodies — any difference is a user-enumeration oracle.
     expect(unknownEmail.body).toEqual(wrongPassword.body)
+  })
+})
+
+describe('GET /api/v1/auth/me', () => {
+  async function signedUp() {
+    const { expressApp } = await appFor()
+    const res = await request(expressApp)
+      .post('/api/v1/auth/signup')
+      .send({ ...VALID, email: 'me@example.com' })
+    return { expressApp, token: res.body.token as string, user: res.body.user }
+  }
+
+  it('returns the current user for a valid token', async () => {
+    const { expressApp, token, user } = await signedUp()
+
+    const res = await request(expressApp)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.id).toBe(user.id)
+    expect(JSON.stringify(res.body)).not.toContain('passwordHash')
+  })
+
+  it('401s with no token', async () => {
+    const { expressApp } = await signedUp()
+    expect((await request(expressApp).get('/api/v1/auth/me')).status).toBe(401)
+  })
+
+  it('401s with a malformed header', async () => {
+    const { expressApp, token } = await signedUp()
+    const res = await request(expressApp).get('/api/v1/auth/me').set('Authorization', token)
+    expect(res.status).toBe(401)
+  })
+
+  it('401s with a garbage token', async () => {
+    const { expressApp } = await signedUp()
+    const res = await request(expressApp)
+      .get('/api/v1/auth/me')
+      .set('Authorization', 'Bearer not.a.jwt')
+    expect(res.status).toBe(401)
+  })
+
+  it('401s with a token signed by the wrong secret', async () => {
+    const { expressApp, user } = await signedUp()
+    const foreign = await new SignJWT({})
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(user.id)
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(new TextEncoder().encode('a-completely-different-secret-32-chars'))
+
+    const res = await request(expressApp)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${foreign}`)
+    expect(res.status).toBe(401)
+  })
+
+  it('401s for a valid token whose user no longer exists', async () => {
+    const { expressApp } = await appFor()
+    const orphan = await new SignJWT({})
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('user-that-never-existed')
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(new TextEncoder().encode(new ConfigService().get('JWT_SECRET')))
+
+    const res = await request(expressApp)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${orphan}`)
+    expect(res.status).toBe(401)
+  })
+
+  // Catches over-application: registering the contributor module-wide instead
+  // of per-method would lock everyone out of signing up, and every other test
+  // here would still pass.
+  it('signup and login remain reachable without a token', async () => {
+    const { expressApp } = await appFor()
+    const res = await request(expressApp)
+      .post('/api/v1/auth/signup')
+      .send({ ...VALID, email: 'public@example.com' })
+    expect(res.status).toBe(201)
   })
 })

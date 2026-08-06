@@ -31,3 +31,58 @@ describe('password hashing', () => {
     expect(await verifyPassword('x', 'scrypt$zzz$zzz')).toBe(false)
   })
 })
+
+describe('password hash format carries its cost parameters', () => {
+  it('writes N, r and p into the stored value', async () => {
+    const stored = await hashPassword('hunter2hunter2')
+    const parts = stored.split('$')
+
+    expect(parts).toHaveLength(6)
+    expect(parts[0]).toBe('scrypt')
+    expect(Number(parts[1])).toBeGreaterThan(1)
+  })
+
+  it('still verifies a legacy 3-segment hash', async () => {
+    // Written by the previous implementation, which used N=16384, r=8, p=1.
+    const { scrypt, randomBytes } = await import('node:crypto')
+    const { promisify } = await import('node:util')
+    const derive = promisify(scrypt) as (
+      p: string,
+      s: Buffer,
+      k: number,
+      o: { N: number; r: number; p: number },
+    ) => Promise<Buffer>
+
+    const salt = randomBytes(32)
+    const digest = await derive('legacy-password', salt, 64, { N: 16384, r: 8, p: 1 })
+    const legacy = `scrypt$${salt.toString('hex')}$${digest.toString('hex')}`
+
+    expect(await verifyPassword('legacy-password', legacy)).toBe(true)
+    expect(await verifyPassword('wrong', legacy)).toBe(false)
+  })
+
+  it('verifies a hash made with DIFFERENT cost parameters', async () => {
+    // The case that actually proves the parameters are read from the value
+    // rather than the module constants — raising N must not lock anyone out.
+    const { scrypt, randomBytes } = await import('node:crypto')
+    const { promisify } = await import('node:util')
+    const derive = promisify(scrypt) as (
+      p: string,
+      s: Buffer,
+      k: number,
+      o: { N: number; r: number; p: number },
+    ) => Promise<Buffer>
+
+    const cost = { N: 4096, r: 8, p: 1 }
+    const salt = randomBytes(32)
+    const digest = await derive('other-cost', salt, 64, cost)
+    const stored = `scrypt$${cost.N}$${cost.r}$${cost.p}$${salt.toString('hex')}$${digest.toString('hex')}`
+
+    expect(await verifyPassword('other-cost', stored)).toBe(true)
+  })
+
+  it('returns false rather than throwing on absurd stored parameters', async () => {
+    expect(await verifyPassword('x', 'scrypt$notanumber$8$1$aa$bb')).toBe(false)
+    expect(await verifyPassword('x', 'scrypt$1$2$3$4$5$6$7')).toBe(false)
+  })
+})

@@ -5,6 +5,7 @@ import { createTestApp } from '@forinda/kickjs-testing'
 import { SignJWT } from 'jose'
 import { SqliteAdapter } from '../../../adapters/sqlite.adapter'
 import { AuthModule } from '../auth.module'
+import { authRateLimitStore } from '../auth.controller'
 
 // NOTE: deliberately no `isolated: true`. createTestApp's isolated container is
 // NOT the one adapters and routes use (Application takes Container.getInstance()),
@@ -17,6 +18,7 @@ async function appFor() {
 const VALID = { email: 'a@example.com', password: 'hunter2hunter2', name: 'A' }
 
 beforeEach(() => {
+  authRateLimitStore.resetAll()
   Container.reset()
 })
 
@@ -230,5 +232,44 @@ describe('auth hardening', () => {
     expect(statuses.filter((s) => s === 409)).toHaveLength(4)
     expect(statuses).not.toContain(500)
     expect(JSON.stringify(results.map((r) => r.body))).not.toContain('UNIQUE constraint')
+  })
+})
+
+describe('auth rate limiting', () => {
+  it('429s after the quota and leaves /auth/me unlimited', async () => {
+    const { expressApp } = await appFor()
+
+    const statuses: number[] = []
+    for (let i = 0; i < 12; i++) {
+      const res = await request(expressApp)
+        .post('/api/v1/auth/login')
+        .set('x-forwarded-for', '203.0.113.7')
+        .send({ email: 'nobody@example.com', password: 'wrongwrongwrong' })
+      statuses.push(res.status)
+    }
+
+    // First 10 are allowed (and fail auth); the rest are refused outright.
+    expect(statuses.slice(0, 10).every((s) => s === 401)).toBe(true)
+    expect(statuses.slice(10)).toEqual([429, 429])
+  })
+
+  it('does not rate-limit a different caller', async () => {
+    const { expressApp } = await appFor()
+
+    for (let i = 0; i < 11; i++) {
+      await request(expressApp)
+        .post('/api/v1/auth/login')
+        .set('x-forwarded-for', '198.51.100.1')
+        .send({ email: 'nobody@example.com', password: 'wrongwrongwrong' })
+    }
+
+    // Keyed per caller. A shared bucket would let one attacker lock out
+    // everyone, which is a denial of service rather than a defence.
+    const other = await request(expressApp)
+      .post('/api/v1/auth/login')
+      .set('x-forwarded-for', '198.51.100.99')
+      .send({ email: 'nobody@example.com', password: 'wrongwrongwrong' })
+
+    expect(other.status).toBe(401)
   })
 })

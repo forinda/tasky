@@ -1,0 +1,6 @@
+allowBuilds:
+  '@scarf/scarf': true
+  '@swc/core': true
+minimumReleaseAgeExclude:
+  - '@forinda/kickjs-cli@6.11.2'
+  - '@forinda/kickjs@6.7.0'

@@ -1,0 +1,4 @@
+{
+    "kickjs.serverUrl": "http://localhost:5001",
+    "kickjs.debugPath": "/_debug"
+}

@@ -770,9 +770,13 @@ is the quiet kind. Fix by passing `onNotFound` to `bootstrap()`:
 onNotFound?: (req: any, res: any, next: any) => void
 ```
 
-**Whether the built-in `onError` leaks stack traces in production is UNVERIFIED.**
-It could not be determined from the framework bundle and cannot be triggered with
-no routes mounted. The override, if needed, is the standard four-arg Express
+**RESOLVED in Story 3 — the built-in `onError` does NOT leak in production.**
+`errorHandler()` captures `isProduction = process.env.NODE_ENV === 'production'`
+at construction and spreads `{ error, stack }` into the 500 body only when it is
+false. Pinned by two tests in `server/src/__tests__/error-surface.test.ts` — one
+asserting production redacts, one asserting non-production deliberately does not,
+so a change that leaks in production becomes a failing test rather than a silent
+regression. No custom `onError` needed. The override, if needed, is the standard four-arg Express
 signature:
 
 ```ts

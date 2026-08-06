@@ -1179,14 +1179,14 @@ git commit -m "fix: emit RFC 9457 for unmatched routes and verify error redactio
 ## Done when
 
 - [ ] `pnpm run typecheck` passes; `pnpm run test` passes, pristine.
-- [ ] `POST /api/v1/auth/signup` returns 201 with a token; a duplicate email returns 409; a short password returns 400.
+- [ ] `POST /api/v1/auth/signup` returns 201 with a token; a duplicate email returns 409; a short password returns **422** (the framework maps Zod failures to Unprocessable Entity, not 400).
 - [ ] `POST /api/v1/auth/login` returns 200 with a token; a wrong password and an unknown email return **identical** 401 responses.
 - [ ] `GET /api/v1/auth/me` returns 200 with a valid token and 401 for each of: no token, malformed header, garbage token, wrong-secret token, and a valid token whose user no longer exists.
 - [ ] Signup and login remain reachable without a token.
 - [ ] No response body anywhere contains `passwordHash` or `scrypt$`.
 - [ ] An unmatched route returns `application/problem+json`.
-- [ ] The `onError` stack-leak question is answered with evidence, either way.
-- [ ] `JWT_SECRET` is absent from every committed file except `.env.example`, where it is an obvious placeholder.
+- [ ] The `onError` stack-leak question is answered with evidence, either way. **Answered:** production redacts `error` and `stack`; non-production includes them deliberately. Both pinned by tests in `server/src/__tests__/error-surface.test.ts`.
+- [ ] `JWT_SECRET` appears only in `.env.example` (now deliberately EMPTY, so `cp .env.example .env` fails `min(32)` rather than booting on a repo-published secret) and in `.env.test`, which carries a labelled dev-only value.
 
 ## Deliberately not in this story
 

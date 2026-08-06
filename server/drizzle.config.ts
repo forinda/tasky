@@ -5,7 +5,7 @@ import { defineConfig } from 'drizzle-kit'
 // reading process.env directly here is correct; `getEnv` is unavailable.
 export default defineConfig({
   dialect: 'sqlite',
-  schema: './src/db/schema.ts',
+  schema: './src/db/schema/*.ts',
   out: './src/db/migrations',
   dbCredentials: {
     url: process.env.DATABASE_URL ?? './data/adero.db',

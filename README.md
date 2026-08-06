@@ -11,7 +11,7 @@ Task management API and web client.
 
 ```bash
 pnpm install
-cp server/.env.example server/.env   # sets NODE_ENV; required by the built artifact (pnpm dev:server works without it)
+cp server/.env.example server/.env   # keep every key — the env schema is re-validated on each reload
 pnpm dev:server
 ```
 

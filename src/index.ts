@@ -1,16 +1,15 @@
 import 'reflect-metadata'
-// Importing './config' first registers the extended env schema with kickjs
-// **before** any controller / service / @Value gets resolved. Without this
-// line ConfigService.get('YOUR_KEY') returns undefined because the cached
-// schema would still be the base shape. The named `env` import still runs
-// that side effect — position matters, not the import form.
-import { env } from './config'
-import { bootstrap, expressRuntime } from '@forinda/kickjs'
+// Side-effect import — registers the extended env schema with kickjs
+// **before** any controller / service / @Value gets resolved. Without
+// this line ConfigService.get('YOUR_KEY') returns undefined because the
+// cached schema would still be the base shape.
+import './config'
+import { bootstrap, expressRuntime, getEnv } from '@forinda/kickjs'
 import { SwaggerAdapter } from '@forinda/kickjs-swagger'
 import { DevToolsAdapter } from '@forinda/kickjs-devtools'
 import { modules } from './modules'
 
-const isProduction = env.NODE_ENV === 'production'
+const isProduction = getEnv('NODE_ENV') === 'production'
 
 // Export the app for the Vite plugin (dev mode) and createTestApp.
 export const app = await bootstrap({

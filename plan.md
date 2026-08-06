@@ -660,7 +660,7 @@ Vitest plus React Testing Library, MSW for API mocking.
 |---|---|---|
 | 1 | **Workspace + strip** | Delete `users/` and the five placeholders; unwire from `bootstrap()`. Then move everything at the root into `server/`, add `packages: [server, web]` to `pnpm-workspace.yaml`, write the private root `package.json` with the five fan-out scripts, add a short workspace-level root `CLAUDE.md` (no root `.agents/` — `server/.agents/` stays the only copy), add `@forinda/kickjs-testing`. `pnpm -r typecheck` and `test` green, `pnpm dev:server` boots. |
 | 2 | **Drizzle foundation** | Deps, `drizzle.config.ts`, full `schema.ts`, `Database` service with FK + WAL pragmas, `SqliteAdapter`, `DATABASE_URL`, first migration. Test: boots, migrates, FK cascade fires, closes clean. |
-| 3 | **Auth module** | `UsersRepository`, scrypt hashing, `jose` JWT, signup/login/me, `CurrentUser` contributor, `JWT_SECRET`. Tests: duplicate email, wrong password, all four 401 paths, no `passwordHash` in any response. |
+| 3 | **Auth module** | `UsersRepository`, scrypt hashing, `jose` JWT, signup/login/me, `CurrentUser` contributor, `JWT_SECRET`. Plus the two error-surface items below — they become testable the moment a route exists. Tests: duplicate email, wrong password, all four 401 paths, no `passwordHash` in any response. |
 | 4 | **Categories module** | Owner-scoped CRUD and paginated list, unique `(ownerId, name)`. First proof of the DI chain and the ownership pattern end to end. Cross-user isolation tests. |
 | 5 | **Tasks module** | Owner-scoped CRUD, `ctx.qs`/`ctx.paginate` list, transactional `categoryIds` writes, 422 on unknown or unowned category. Cross-user isolation tests. |
 | 6 | **Grouping + API polish** | `/tasks/grouped`, `/categories/:id/tasks`, cascade verification, Swagger tags and Bearer security scheme. |
@@ -715,6 +715,49 @@ Story 2 (Drizzle foundation) starts:
   the production gate, and the `import './config'` ordering have zero
   coverage. Add a test that imports `{ app }` from `../index` when adding
   `SqliteAdapter`.
+
+## 16b. Carried from Story 1 — two error-surface items for Story 3
+
+Both were found during Story 1 and deferred because they are untestable while the
+app has zero routes. Story 3 adds the first ones, so they belong there — not in
+the Story 6 polish pass.
+
+**`onNotFound` does not emit RFC 9457.** Measured against a production build, an
+unmatched route returns:
+
+```
+HTTP/1.1 404 Not Found
+Content-Type: application/json; charset=utf-8
+
+{"message":"Not Found"}
+```
+
+§7 specifies every error branch goes through `ctx.problem.*`, which emits
+`application/problem+json`. So once real routes exist, a mistyped path and a
+handler-raised 404 return different shapes at the same status — and the typed
+client parses `KickClientError.body` as problem details, so one of the two hands
+it something it cannot read. It fails as a wrong-shaped body, not a throw, which
+is the quiet kind. Fix by passing `onNotFound` to `bootstrap()`:
+
+```ts
+onNotFound?: (req: any, res: any, next: any) => void
+```
+
+**Whether the built-in `onError` leaks stack traces in production is UNVERIFIED.**
+It could not be determined from the framework bundle and cannot be triggered with
+no routes mounted. The override, if needed, is the standard four-arg Express
+signature:
+
+```ts
+onError?: (err: any, req: any, res: any, next: any) => void
+```
+
+Make this an explicit acceptance item on Story 3 — the commit that adds a route
+able to throw is the same commit that makes a leak exploitable.
+
+Both hooks take **raw Express args**, not `RequestContext`. That is engine
+coupling: fine while `kick.config.ts` pins `runtime: 'express'`, but it is the
+piece that breaks if the runtime ever moves to Fastify or h3.
 
 ## 17. Constraints carried from `.agents/`
 

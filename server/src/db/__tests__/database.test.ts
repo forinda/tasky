@@ -80,6 +80,25 @@ describe('Database', () => {
     expect(database.db.select().from(categories).all()).toHaveLength(1)
   })
 
+  it('cascades a user id change to their tasks', () => {
+    const database = freshDb()
+
+    database.db.insert(users).values({
+      id: 'u1',
+      email: 'a@example.com',
+      passwordHash: 'x',
+      name: 'A',
+    }).run()
+    database.db.insert(tasks).values({ id: 't1', ownerId: 'u1', title: 'Ship' }).run()
+
+    // ON UPDATE cascade — UUIDs are not expected to change, but if one is
+    // ever rewritten the references must follow rather than break.
+    database.connection.prepare("UPDATE users SET id = 'u2' WHERE id = 'u1'").run()
+
+    const [task] = database.db.select().from(tasks).all()
+    expect(task.ownerId).toBe('u2')
+  })
+
   it('rejects a task whose owner does not exist', () => {
     const database = freshDb()
 

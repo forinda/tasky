@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { createLogger, defineAdapter, getEnv, type AdapterContext } from '@forinda/kickjs'
@@ -6,23 +5,17 @@ import { Database } from '../db/database'
 
 const log = createLogger('SqliteAdapter')
 
-// Resolved from this file rather than process.cwd() so migrations are found
-// regardless of which directory the process was started from.
-//
-// Production trusts the copy inside its own bundle: a deploy shipping only
-// dist/ + node_modules/ has no src/ to fall back to. Dev and tests prefer the
-// source folder, because a stale dist/migrations left over from an earlier
-// build would otherwise win silently and apply the wrong schema.
-const DIST_MIGRATIONS = resolve(import.meta.dirname, './migrations')
-const SRC_MIGRATIONS = resolve(import.meta.dirname, '../db/migrations')
-
-const MIGRATIONS_CANDIDATES =
-  getEnv('NODE_ENV') === 'production'
-    ? [DIST_MIGRATIONS, SRC_MIGRATIONS]
-    : [SRC_MIGRATIONS, DIST_MIGRATIONS]
-
+// `import.meta.dirname` is `<server>/dist` in the bundle and
+// `<server>/src/adapters` when running unbundled (dev, vitest).
+// Production reads the copy `kick build` places inside the bundle; dev and
+// tests read the source folder, so a stale dist/ can never silently apply an
+// outdated schema. There is deliberately no cross-fallback: each environment
+// has exactly one correct location, and a miss should fail loudly rather than
+// quietly reach for the other one.
 const MIGRATIONS_FOLDER =
-  MIGRATIONS_CANDIDATES.find((path) => existsSync(path)) ?? MIGRATIONS_CANDIDATES[0]
+  getEnv('NODE_ENV') === 'production'
+    ? resolve(import.meta.dirname, './migrations')
+    : resolve(import.meta.dirname, '../db/migrations')
 
 /**
  * Owns the database lifecycle and nothing else — no query logic lives here.
@@ -49,12 +42,14 @@ export const SqliteAdapter = defineAdapter({
         } catch (error) {
           log.error(`migration failed from ${MIGRATIONS_FOLDER} — refusing to start`, error)
 
-          // Under vitest this code runs inside the test worker. A hard exit
-          // there kills the whole run with an opaque "worker exited" error;
-          // rethrowing instead surfaces as a normal failing test. In a real
-          // process we must still exit, because the framework catches a
-          // `beforeStart` throw, logs "Adapter hook failed", and starts the
-          // server anyway — serving traffic against an unmigrated database.
+          // The framework catches every `beforeStart` throw (logs "Adapter
+          // hook failed" and starts the server anyway), which is why
+          // production needs the explicit exit below. Under vitest a hard
+          // exit would kill the worker instead, so we rethrow and accept
+          // that the caught error goes nowhere useful — with LOG_LEVEL=silent
+          // in .env.test, not even the log line survives. The real signal is
+          // the table assertion in app.test.ts: a bare "no such table" there
+          // means check migrations first.
           if (getEnv('NODE_ENV') === 'test') throw error
 
           process.exit(1)

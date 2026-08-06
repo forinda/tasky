@@ -24,5 +24,8 @@ export default defineConfig({
   // set `schemaValidator: false` to skip schema-driven body typing.
   typegen: {
     schemaValidator: 'kickjs-schema',
-  }, plugins:[]
+  }, plugins:[],
+  // `kick build` copies these into the bundle. Migrations must ship with
+  // dist/ so a deploy of dist/ + node_modules/ is self-contained.
+  copyDirs: [{ src: 'src/db/migrations', dest: 'dist/migrations' }],
 })

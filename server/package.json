@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "kick dev",
     "dev:debug": "kick dev:debug",
-    "build": "kick build && cp -r src/db/migrations dist/migrations",
+    "build": "kick build",
     "start": "kick start",
     "test": "vitest run",
     "test:watch": "vitest",

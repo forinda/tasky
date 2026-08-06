@@ -1,20 +1,26 @@
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { createLogger, defineAdapter, type AdapterContext } from '@forinda/kickjs'
+import { createLogger, defineAdapter, getEnv, type AdapterContext } from '@forinda/kickjs'
 import { Database } from '../db/database'
 
 const log = createLogger('SqliteAdapter')
 
 // Resolved from this file rather than process.cwd() so migrations are found
 // regardless of which directory the process was started from.
-const MIGRATIONS_CANDIDATES = [
-  // Production: `kick build` copies src/db/migrations to dist/migrations, so a
-  // deploy shipping only dist/ + node_modules/ is self-contained.
-  resolve(import.meta.dirname, './migrations'),
-  // Dev and tests: running unbundled from src/adapters/.
-  resolve(import.meta.dirname, '../db/migrations'),
-]
+//
+// Production trusts the copy inside its own bundle: a deploy shipping only
+// dist/ + node_modules/ has no src/ to fall back to. Dev and tests prefer the
+// source folder, because a stale dist/migrations left over from an earlier
+// build would otherwise win silently and apply the wrong schema.
+const DIST_MIGRATIONS = resolve(import.meta.dirname, './migrations')
+const SRC_MIGRATIONS = resolve(import.meta.dirname, '../db/migrations')
+
+const MIGRATIONS_CANDIDATES =
+  getEnv('NODE_ENV') === 'production'
+    ? [DIST_MIGRATIONS, SRC_MIGRATIONS]
+    : [SRC_MIGRATIONS, DIST_MIGRATIONS]
+
 const MIGRATIONS_FOLDER =
   MIGRATIONS_CANDIDATES.find((path) => existsSync(path)) ?? MIGRATIONS_CANDIDATES[0]
 
@@ -41,11 +47,16 @@ export const SqliteAdapter = defineAdapter({
           // Non-null: assigned on the line above, in the same synchronous call.
           migrate(database!.db, { migrationsFolder: MIGRATIONS_FOLDER })
         } catch (error) {
-          // The framework catches a throw here, logs "Adapter hook failed",
-          // and starts the server anyway — which would serve traffic against
-          // an unmigrated database. Exit instead: a process that cannot
-          // migrate must not accept requests.
           log.error(`migration failed from ${MIGRATIONS_FOLDER} — refusing to start`, error)
+
+          // Under vitest this code runs inside the test worker. A hard exit
+          // there kills the whole run with an opaque "worker exited" error;
+          // rethrowing instead surfaces as a normal failing test. In a real
+          // process we must still exit, because the framework catches a
+          // `beforeStart` throw, logs "Adapter hook failed", and starts the
+          // server anyway — serving traffic against an unmigrated database.
+          if (getEnv('NODE_ENV') === 'test') throw error
+
           process.exit(1)
         }
       },

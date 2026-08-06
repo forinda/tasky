@@ -52,7 +52,19 @@ export class TasksService {
   private assertKnownFilterValues(parsed: ParsedQuery): void {
     for (const filter of parsed.filters) {
       const allowed = FILTER_ENUMS[filter.field]
-      if (allowed && !allowed.includes(filter.value)) {
+      if (!allowed) continue
+
+      // The framework parses the operator (eq/neq/gt/contains/…) but the
+      // repository only implements `eq`. Silently treating `neq` as `eq`
+      // returns the exact INVERSE of what was asked — a wrong answer the
+      // client cannot detect. Reject until an operator is actually supported.
+      if (filter.operator !== 'eq') {
+        throw HttpException.unprocessable(
+          `Unsupported operator '${filter.operator}' for ${filter.field}. Only 'eq' is supported.`,
+        )
+      }
+
+      if (!allowed.includes(filter.value)) {
         throw HttpException.unprocessable(
           `Invalid ${filter.field} filter '${filter.value}'. Expected one of: ${allowed.join(', ')}`,
         )
@@ -110,11 +122,11 @@ export class TasksService {
     // Validate before writing anything, so a bad id cannot half-apply a patch.
     if (categoryIds) this.assertOwnedCategories(ownerId, categoryIds)
 
-    // `{ categoryIds: [...] }` alone is a valid patch that touches no column.
-    const task =
-      Object.keys(patch).length > 0
-        ? await this.repo.update(id, ownerId, patch)
-        : await this.repo.findById(id, ownerId)
+    // Unconditional, including for a `{ categoryIds: [...] }`-only patch:
+    // `.set({ ...patch, updatedAt })` is valid with an empty patch, and taking
+    // a findById branch instead would leave `updatedAt` stale after a change
+    // the client can see — breaking polling, caching, and sort=updatedAt.
+    const task = await this.repo.update(id, ownerId, patch)
     if (!task) throw HttpException.notFound('Task not found')
 
     if (categoryIds && !this.repo.replaceCategories(id, ownerId, categoryIds)) {

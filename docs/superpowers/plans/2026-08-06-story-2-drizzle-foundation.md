@@ -324,15 +324,40 @@ git commit -m "feat: add drizzle schema for users, tasks, categories, and join t
 - Consumes: `schema` and the table objects from Task 2; `DATABASE_URL` from Task 1.
 - Produces: `@Service() class Database` with a readonly `db` (Drizzle instance), a readonly `connection` (raw `better-sqlite3`), and `close(): void`. Task 4 and every repository in Stories 3-5 inject it by type via `@Autowired()`.
 
+- [ ] **Step 0: Register the env schema for the whole test suite**
+
+Every test that resolves an env value needs the extended schema registered
+first. Do it once in a setup file rather than per test file.
+
+Create `server/src/test-setup.ts`:
+
+```ts
+// Side-effect import — registers the extended env schema with kickjs before
+// any test resolves a value. Mirrors the ordering rule in src/index.ts.
+// `.env.test` supplies DATABASE_URL=:memory:.
+import './config'
+```
+
+Then add `setupFiles` to `server/vitest.config.ts`:
+
+```ts
+  test: {
+    globals: true,
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
+    setupFiles: ['./src/test-setup.ts'],
+  },
+```
+
+`test-setup.ts` does not match the `include` glob, so it is never collected as a
+test. It lives under `src/` so `tsc` typechecks it.
+
 - [ ] **Step 1: Write the failing test**
 
 Create `server/src/db/__tests__/database.test.ts`:
 
 ```ts
 import { describe, it, expect, afterEach } from 'vitest'
-// Side-effect import — registers the extended env schema so ConfigService
-// resolves DATABASE_URL. `.env.test` sets it to ':memory:'.
-import '../../config'
 import { ConfigService } from '@forinda/kickjs'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { eq } from 'drizzle-orm'
@@ -484,6 +509,12 @@ export class Database {
   }
 }
 ```
+
+**Env registration lives in the vitest setup file, not in each test.** See Task 3
+Step 0 — `server/src/test-setup.ts` performs the `import './config'` side effect
+once, and `vitest.config.ts` loads it via `setupFiles`. A per-test-file import
+would be boilerplate every new test could forget, and forgetting it yields an
+`undefined` env value rather than a clear error.
 
 **Why `ConfigService` and not `@Value`.** In this version `Value` is declared
 `PropertyDecorator`, so `constructor(@Value('DATABASE_URL') url: string)` fails

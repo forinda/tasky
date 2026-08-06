@@ -417,8 +417,44 @@ body schema becomes a compile error in `web`, not a runtime 404.
 
 `createClient` accepts `headers` as either a static record **or a factory invoked
 per request**, which is where the auth token attaches — no interceptor layer
-needed. It also accepts a `fetch` override, which is where the global 401 handler
-goes.
+needed. It also accepts a `fetch` override.
+
+```ts
+export const api = createClient<KickApi>({
+  baseUrl: '/api/v1',
+  headers: () => ({ Authorization: `Bearer ${getToken()}` }),
+})
+```
+
+**Call shape** — method per verb, path template, typed options:
+
+```ts
+const task  = await api.get('/tasks/:id', { params: { id } })
+const made  = await api.post('/tasks', { body: { title: 'Ship' } })
+const page  = await api.get('/tasks', { query: { filter: 'status:eq:todo' } })
+```
+
+`params` fills path segments, `body` is the request payload, `query` is the query
+string — each typed from the route's Zod schema and `@ApiQueryParams` config.
+
+**Errors** — a non-2xx response throws `KickClientError`, carrying `status`, the
+parsed RFC 9457 problem body, and the raw `Response`. A 204 resolves to
+`undefined`. This lines up exactly with the API's `ctx.problem.*` error branches
+(§7): the shape the server sends is the shape the client surfaces, with no
+translation layer.
+
+```ts
+try {
+  await api.get('/tasks/:id', { params: { id } })
+} catch (e) {
+  if (e instanceof KickClientError && e.status === 404) showNotFound()
+}
+```
+
+There is also a `createRpc(api, kickRpc)` wrapper giving `rpc.tasks.get({ … })`,
+with namespaces derived from controller names. Not used here — the path-based
+form keeps the call site and the route table visually identical, which matters
+more than brevity while the API is still being built.
 
 ## 11. Frontend stack
 
@@ -435,7 +471,27 @@ goes.
 | Icons | Lucide | |
 
 TanStack Query wraps `kickjs-client` calls rather than replacing them — the
-client owns transport and types, Query owns caching and invalidation.
+client owns transport and types, Query owns caching and invalidation. Query
+functions are one-liners and the data type is inferred, never annotated:
+
+```ts
+export const taskQueries = {
+  all:    () => queryOptions({ queryKey: ['tasks'] as const,     queryFn: () => api.get('/tasks') }),
+  detail: (id: string) =>
+          queryOptions({ queryKey: ['tasks', id] as const, queryFn: () => api.get('/tasks/:id', { params: { id } }) }),
+}
+```
+
+Query keys mirror endpoint paths, so an invalidation reads like the route it
+affects. Retry policy keys off the typed error — client errors are not retried:
+
+```ts
+retry: (count, error) =>
+  error instanceof KickClientError && error.status < 500 ? false : count < 3,
+```
+
+If a call ever needs a manual type annotation, that is the signal that
+`kick typegen` is stale — regenerate rather than annotate.
 
 No component library. A board, a few forms, and a landing page do not justify
 one, and the visual direction below is specific enough that a library's defaults

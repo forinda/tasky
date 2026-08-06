@@ -6,6 +6,7 @@ A **Minimal** built with [KickJS](https://kickjs.app/) — a decorator-driven No
 
 ```bash
 pnpm install
+cp .env.example .env
 kick dev
 ```
 
@@ -55,7 +56,7 @@ Copy `.env.example` to `.env` and configure:
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `3000` | Server port |
-| `NODE_ENV` | `development` | Environment |
+| `NODE_ENV` | *(required)* | Environment — no default; the built artifact (`node dist/index.js`) fails to boot if it is unset |
 
 ## Learn More
 

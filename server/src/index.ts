@@ -21,7 +21,8 @@ export const app = await bootstrap({
     ...(isProduction ? [] : [DevToolsAdapter({ secret: false })]),
     // Swagger mounts /docs, /redoc, and /openapi.json — the full API surface
     // described in one place. Development only.
-    ...(isProduction ? []
+    ...(isProduction
+      ? []
       : [
           SwaggerAdapter({
             info: {

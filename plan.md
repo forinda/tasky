@@ -89,7 +89,7 @@ they are no longer the type source for responses.
 ```
 server/src/
   db/
-    schema.ts             users, tasks, categories, taskCategories + $inferSelect types
+    schema/               one file per table + enums.ts, timestamps.ts, barrel index.ts
     database.ts           @Service() class Database — connection + drizzle instance
     migrations/           drizzle-kit output, committed
   adapters/
@@ -142,7 +142,7 @@ users
 
 tasks
   id          text, uuid, PK
-  ownerId     text → users.id, not null, on delete cascade
+  ownerId     text → users.id, not null, on delete RESTRICT, on update cascade
   title       text, not null
   description text, nullable
   priority    text $type<'low' | 'medium' | 'high'>, default 'medium'
@@ -153,7 +153,7 @@ tasks
 
 categories
   id          text, uuid, PK
-  ownerId     text → users.id, not null, on delete cascade
+  ownerId     text → users.id, not null, on delete RESTRICT, on update cascade
   name        text, not null
   color       text, nullable
   createdAt   integer, timestamp_ms
@@ -161,10 +161,21 @@ categories
   UNIQUE (ownerId, name)
 
 taskCategories
-  taskId      text → tasks.id, on delete cascade
-  categoryId  text → categories.id, on delete cascade
+  taskId      text → tasks.id, on delete cascade, on update cascade
+  categoryId  text → categories.id, on delete cascade, on update cascade
   PRIMARY KEY (taskId, categoryId)
 ```
+
+**Delete behaviour is deliberately split.** The two ownership keys are
+`RESTRICT`: a user's tasks and categories have real value, so removing the owner
+must fail loudly rather than silently destroying their data. Account deletion
+therefore becomes an explicit, ordered operation whenever it is added — not a
+side effect. The two join keys stay `CASCADE`: a join row has no independent
+value, so deleting a task or a category should clean up its own links.
+
+**Every foreign key is `ON UPDATE CASCADE`.** IDs are UUIDs and are not expected
+to change, so this is a safety net rather than a workflow — but if one ever is
+rewritten, the references follow instead of breaking.
 
 Text UUIDs over autoincrement integers: safe to expose in URLs and non-guessable.
 Timestamps as `integer({ mode: 'timestamp_ms' })` — SQLite has no date type, and
@@ -173,13 +184,15 @@ this mode hands back real `Date` objects.
 SQLite has no native enum, so `status` and `priority` are text columns typed via
 Drizzle's `$type<>` and validated by the Zod request schemas.
 
-`taskCategories` carries no `ownerId`. Both sides already cascade from `users`,
-and a join row can only exist between a task and a category the same user owns —
-enforced at write time, see §7.
+`taskCategories` carries no `ownerId`. A join row can only be written between a
+task and a category the same user owns — enforced at write time, see §7 — so the
+column would be a third copy of an ownership fact the two referenced rows already
+carry.
 
 **Foreign keys are off by default in SQLite.** `Database` must issue
-`PRAGMA foreign_keys = ON` on connect, or every `on delete cascade` above is
-silently decorative. `PRAGMA journal_mode = WAL` on the same line for concurrent
+`PRAGMA foreign_keys = ON` on connect, or every `ON DELETE` and `ON UPDATE`
+clause above is silently decorative — the restricts would not restrict and the
+cascades would leave orphans. `PRAGMA journal_mode = WAL` on the same line for concurrent
 read throughput.
 
 ## 6. Authentication
@@ -296,12 +309,26 @@ JWT_SECRET:     z.string().min(32),          // no default — boot fails withou
 JWT_EXPIRES_IN: z.string().default('7d'),
 ```
 
-Read via `@Value(...)`. `.env.test` sets `DATABASE_URL=:memory:`, so each test
-run starts clean with no file cleanup.
+**Reading these values — `@Value` does NOT work on a constructor parameter.** In
+`@forinda/kickjs@6.7.0` it is declared `PropertyDecorator`, so
+`constructor(@Value('JWT_SECRET') secret: string)` fails with `TS1239`. A
+defaulted parameter does not rescue it either: the container computes
+`paramCount = max(paramTypes.length, maxInjectIndex)` and would try to resolve
+`String` as a dependency.
+
+Three forms that do work:
+
+- `@Value('KEY')` on a **property** — its documented shape, resolved lazily on access.
+- `@Inject(ConfigService)` on a constructor parameter, then `config.get('KEY')` —
+  what `Database` does, and what Story 3's auth service should do for `JWT_SECRET`.
+- `getEnv('KEY')` at module scope, for values needed outside a class.
+
+`.env.test` sets `DATABASE_URL=:memory:`, so each test run starts clean with no
+file cleanup.
 
 ```ts
 // server/drizzle.config.ts
-{ dialect: 'sqlite', schema: './src/db/schema.ts', out: './src/db/migrations' }
+{ dialect: 'sqlite', schema: './src/db/schema/*.ts', out: './src/db/migrations' }
 ```
 
 Scripts: `db:generate` (`drizzle-kit generate`) and `db:studio`. There is no
@@ -358,12 +385,12 @@ repo root, no `apps/` nesting.
 ```
 pnpm-workspace.yaml    packages: [server, web]  + existing allowBuilds / minimumReleaseAgeExclude
 package.json           private workspace root — scripts only, no runtime deps
-CLAUDE.md              root pointer
-.agents/               root canonical agent docs
-.gitignore             node_modules/ dist/ .env *.log .DS_Store
+CLAUDE.md              ~20-line workspace pointer — NOT a copy of server/'s
+.gitignore             node_modules/ dist/ .env *.local *.log .DS_Store .superpowers/
+.gitattributes         text=auto eol=lf + lockfile -diff rules (lockfile lives here)
 README.md
 server/                everything currently at the repo root, moved wholesale
-  .agents/             server-scoped copy, refreshed by `kick g agents -f`
+  .agents/             the ONLY copy — regenerated by `kick g agents -f`
   .kickjs/types/       generated route types — the web package reads these
   src/
 web/
@@ -417,8 +444,44 @@ body schema becomes a compile error in `web`, not a runtime 404.
 
 `createClient` accepts `headers` as either a static record **or a factory invoked
 per request**, which is where the auth token attaches — no interceptor layer
-needed. It also accepts a `fetch` override, which is where the global 401 handler
-goes.
+needed. It also accepts a `fetch` override.
+
+```ts
+export const api = createClient<KickApi>({
+  baseUrl: '/api/v1',
+  headers: () => ({ Authorization: `Bearer ${getToken()}` }),
+})
+```
+
+**Call shape** — method per verb, path template, typed options:
+
+```ts
+const task  = await api.get('/tasks/:id', { params: { id } })
+const made  = await api.post('/tasks', { body: { title: 'Ship' } })
+const page  = await api.get('/tasks', { query: { filter: 'status:eq:todo' } })
+```
+
+`params` fills path segments, `body` is the request payload, `query` is the query
+string — each typed from the route's Zod schema and `@ApiQueryParams` config.
+
+**Errors** — a non-2xx response throws `KickClientError`, carrying `status`, the
+parsed RFC 9457 problem body, and the raw `Response`. A 204 resolves to
+`undefined`. This lines up exactly with the API's `ctx.problem.*` error branches
+(§7): the shape the server sends is the shape the client surfaces, with no
+translation layer.
+
+```ts
+try {
+  await api.get('/tasks/:id', { params: { id } })
+} catch (e) {
+  if (e instanceof KickClientError && e.status === 404) showNotFound()
+}
+```
+
+There is also a `createRpc(api, kickRpc)` wrapper giving `rpc.tasks.get({ … })`,
+with namespaces derived from controller names. Not used here — the path-based
+form keeps the call site and the route table visually identical, which matters
+more than brevity while the API is still being built.
 
 ## 11. Frontend stack
 
@@ -435,7 +498,27 @@ goes.
 | Icons | Lucide | |
 
 TanStack Query wraps `kickjs-client` calls rather than replacing them — the
-client owns transport and types, Query owns caching and invalidation.
+client owns transport and types, Query owns caching and invalidation. Query
+functions are one-liners and the data type is inferred, never annotated:
+
+```ts
+export const taskQueries = {
+  all:    () => queryOptions({ queryKey: ['tasks'] as const,     queryFn: () => api.get('/tasks') }),
+  detail: (id: string) =>
+          queryOptions({ queryKey: ['tasks', id] as const, queryFn: () => api.get('/tasks/:id', { params: { id } }) }),
+}
+```
+
+Query keys mirror endpoint paths, so an invalidation reads like the route it
+affects. Retry policy keys off the typed error — client errors are not retried:
+
+```ts
+retry: (count, error) =>
+  error instanceof KickClientError && error.status < 500 ? false : count < 3,
+```
+
+If a call ever needs a manual type annotation, that is the signal that
+`kick typegen` is stale — regenerate rather than annotate.
 
 No component library. A board, a few forms, and a landing page do not justify
 one, and the visual direction below is specific enough that a library's defaults
@@ -602,9 +685,9 @@ Vitest plus React Testing Library, MSW for API mocking.
 
 | # | Story | Ships |
 |---|---|---|
-| 1 | **Workspace + strip** | Delete `users/` and the five placeholders; unwire from `bootstrap()`. Then move everything at the root into `server/`, add `packages: [server, web]` to `pnpm-workspace.yaml`, write the private root `package.json` with the five fan-out scripts, move `CLAUDE.md` + `.agents/` to the root (server keeps its own copy), add `@forinda/kickjs-testing`. `pnpm -r typecheck` and `test` green, `pnpm dev:server` boots. |
-| 2 | **Drizzle foundation** | Deps, `drizzle.config.ts`, full `schema.ts`, `Database` service with FK + WAL pragmas, `SqliteAdapter`, `DATABASE_URL`, first migration. Test: boots, migrates, FK cascade fires, closes clean. |
-| 3 | **Auth module** | `UsersRepository`, scrypt hashing, `jose` JWT, signup/login/me, `CurrentUser` contributor, `JWT_SECRET`. Tests: duplicate email, wrong password, all four 401 paths, no `passwordHash` in any response. |
+| 1 | **Workspace + strip** | Delete `users/` and the five placeholders; unwire from `bootstrap()`. Then move everything at the root into `server/`, add `packages: [server, web]` to `pnpm-workspace.yaml`, write the private root `package.json` with the five fan-out scripts, add a short workspace-level root `CLAUDE.md` (no root `.agents/` — `server/.agents/` stays the only copy), add `@forinda/kickjs-testing`. `pnpm -r typecheck` and `test` green, `pnpm dev:server` boots. |
+| 2 | **Drizzle foundation** | Deps, `drizzle.config.ts`, per-table `db/schema/` + `enums.ts`, `Database` service with FK + WAL pragmas, `SqliteAdapter`, `DATABASE_URL`, first migration. Test: boots, migrates, deleting a user who owns rows is refused, join rows still cascade, closes clean. |
+| 3 | **Auth module** | `UsersRepository`, scrypt hashing, `jose` JWT, signup/login/me, `CurrentUser` contributor, `JWT_SECRET`. Plus the two error-surface items below — they become testable the moment a route exists. Tests: duplicate email, wrong password, all four 401 paths, no `passwordHash` in any response. |
 | 4 | **Categories module** | Owner-scoped CRUD and paginated list, unique `(ownerId, name)`. First proof of the DI chain and the ownership pattern end to end. Cross-user isolation tests. |
 | 5 | **Tasks module** | Owner-scoped CRUD, `ctx.qs`/`ctx.paginate` list, transactional `categoryIds` writes, 422 on unknown or unowned category. Cross-user isolation tests. |
 | 6 | **Grouping + API polish** | `/tasks/grouped`, `/categories/:id/tasks`, cascade verification, Swagger tags and Bearer security scheme. |
@@ -638,6 +721,106 @@ status changes through the card menu. Shipping 11 first means the board is
 usable while drag-and-drop — the piece most likely to eat time on touch targets,
 scroll containers, and keyboard fallbacks — gets its own budget.
 
+### Story 2 readiness notes
+
+Carried forward from the Story 1 final review so they are not lost before
+Story 2 (Drizzle foundation) starts:
+
+- `pnpm-workspace.yaml` must gain `'better-sqlite3': true` under `allowBuilds`
+  **in the same commit that adds the dependency**. It is a native module; pnpm
+  10 silently skips unlisted build scripts, so install appears to succeed and
+  the adapter then fails at boot with a `Could not locate the bindings file`
+  error that reads like a code bug, not a missing allow-list entry.
+- Create `server/src/adapters/index.ts` when `SqliteAdapter` lands. A third
+  adapter inlined into `server/src/index.ts` is exactly the shape the
+  thin-entry-file rule forbids. The two `isProduction` spreads move there and
+  stay separate.
+- Add `*.db`, `*.db-wal`, `*.db-shm` to `server/.gitignore` in the same commit
+  — WAL mode creates all three on first boot.
+- Nothing currently imports `server/src/index.ts` in a test; the smoke test
+  builds its own app via `createTestApp({ modules: [] })`. The adapter list,
+  the production gate, and the `import './config'` ordering have zero
+  coverage. Add a test that imports `{ app }` from `../index` when adding
+  `SqliteAdapter`.
+
+## 16b. Carried from Story 1 — two error-surface items for Story 3
+
+Both were found during Story 1 and deferred because they are untestable while the
+app has zero routes. Story 3 adds the first ones, so they belong there — not in
+the Story 6 polish pass.
+
+**`onNotFound` does not emit RFC 9457.** Measured against a production build, an
+unmatched route returns:
+
+```
+HTTP/1.1 404 Not Found
+Content-Type: application/json; charset=utf-8
+
+{"message":"Not Found"}
+```
+
+§7 specifies every error branch goes through `ctx.problem.*`, which emits
+`application/problem+json`. So once real routes exist, a mistyped path and a
+handler-raised 404 return different shapes at the same status — and the typed
+client parses `KickClientError.body` as problem details, so one of the two hands
+it something it cannot read. It fails as a wrong-shaped body, not a throw, which
+is the quiet kind. Fix by passing `onNotFound` to `bootstrap()`:
+
+```ts
+onNotFound?: (req: any, res: any, next: any) => void
+```
+
+**Whether the built-in `onError` leaks stack traces in production is UNVERIFIED.**
+It could not be determined from the framework bundle and cannot be triggered with
+no routes mounted. The override, if needed, is the standard four-arg Express
+signature:
+
+```ts
+onError?: (err: any, req: any, res: any, next: any) => void
+```
+
+Make this an explicit acceptance item on Story 3 — the commit that adds a route
+able to throw is the same commit that makes a leak exploitable.
+
+Both hooks take **raw Express args**, not `RequestContext`. That is engine
+coupling: fine while `kick.config.ts` pins `runtime: 'express'`, but it is the
+piece that breaks if the runtime ever moves to Fastify or h3.
+
+## 16c. Carried from Story 2 — traps for Story 3 and Story 5
+
+**`createTestApp({ isolated: true })` and adapters do not share a container.**
+`createTestApp` builds `Container.create()`, but `Application`'s constructor takes
+`Container.getInstance()` — the global singleton. `setup()` runs each adapter's
+`beforeStart` and builds the route table against the **global** container, while
+the isolated container handed back to the caller is a second, parallel graph. So:
+
+```ts
+const { expressApp, container } = await createTestApp({
+  modules: [AuthModule()], adapters: [SqliteAdapter()], isolated: true,
+})
+container.resolve(Database)   // ← a DIFFERENT, unmigrated :memory: database
+```
+
+seeds a user into a database the HTTP routes never see. Either drop `isolated`
+when passing adapters, or resolve `Database` off `app.getContainer()` — which is
+what `server/src/__tests__/app.test.ts` already does. Decide this before the first
+controller test is written, not after debugging a phantom empty table.
+
+The good news: `createTestApp` accepts `adapters`, so controller tests get real
+migrations by passing `SqliteAdapter()`. No new helper needed, and
+`server/src/test-setup.ts` means no per-file env boilerplate.
+
+**A migration failure under test is silent.** The framework swallows every
+`beforeStart` throw (`callHook` catches and logs), and `.env.test` sets
+`LOG_LEVEL=silent`. So a broken migration in a test run produces no output at all
+— it surfaces as a wall of `no such table: users`. If Story 3's auth tests fail
+that way, check migrations before debugging the auth code.
+
+**Story 5 will want `relations()`.** `server/src/db/schema/index.ts` exports the
+`schema` object but declares no Drizzle relations, so
+`db.query.tasks.findMany({ with: { categories: true } })` will not work for
+`/tasks/grouped`. Manual joins are fine — just don't discover it mid-story.
+
 ## 17. Constraints carried from `.agents/`
 
 - `defineAdapter()` / `definePlugin()` / `defineModule()` factories — never
@@ -657,9 +840,20 @@ scroll containers, and keyboard fallbacks — gets its own budget.
   client filter is silently dropped.
 - Contributors must **return** their value — assigning `ctx.currentUser = x`
   sticks to one `RequestContext` instance and silently vanishes.
+- Read env values with `getEnv('KEY')` from `@forinda/kickjs`, not a named import
+  from `./config` and not raw `process.env`. `getEnv` is typed off the generated
+  `KickEnv` interface and keeps `import './config'` a pure side-effect import.
+- `DevToolsAdapter` mounts only when `getEnv('NODE_ENV') !== 'production'`. Its
+  `secret: false` setting is an explicit opt-out of authentication on a surface
+  that exposes the route table, DI graph, and adapter list. `SwaggerAdapter` is
+  gated the same way, in its own separate `...(isProduction ? [] : [...])`
+  spread — `/docs`, `/redoc`, and `/openapi.json` are just as much of an
+  unauthenticated information surface.
 - After the move, re-run `kick g agents -f` from `server/` so its `.agents/`
-  reflects the new layout. The root `CLAUDE.md` and `.agents/` are maintained by
-  hand and must describe the workspace, not just the server.
+  reflects the new layout. There is deliberately **no** root `.agents/` — that
+  command regenerates only `server/`'s, so a root duplicate would be stale by
+  construction. The root `CLAUDE.md` is a short hand-maintained pointer to
+  `server/.agents/AGENTS.md`, not a second copy of the conventions.
 - `kick typegen` must have run in `server/` before `web` typechecks — the
   `KickApi` ambient type comes from `server/.kickjs/types/kick__routes`. A clean
   clone that runs `pnpm typecheck` before `pnpm dev:server` will fail on a

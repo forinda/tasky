@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.env
+# Personal machine overrides. `.env.test` itself is COMMITTED — it is the
+# suite's shared, reviewable environment — but `*.local` never is.
+*.local
+coverage/
+.DS_Store
+*.tsbuildinfo
+.kickjs/
+# Agent scratch — briefs, ledgers, review packages. Never committed.
+.superpowers/
+
+# SQLite — WAL mode creates all three on first boot
+*.db
+*.db-wal
+*.db-shm
+data/

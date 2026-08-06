@@ -1,0 +1,48 @@
+import { loadEnvFromSchema } from '@forinda/kickjs/config'
+import { fromZod } from '@forinda/kickjs-schema/zod'
+import { z } from 'zod'
+
+/**
+ * Project environment schema (Zod).
+ *
+ * `fromZod` wraps the Zod schema as a `KickSchema` so the env loader,
+ * validate middleware, and swagger spec generator all see the same
+ * shape. The default export is the contract `kick typegen` reads to
+ * populate `KickEnv` via `InferSchemaOutput<typeof _envSchema>` —
+ * that's what makes `@Value('FOO')` autocomplete and
+ * `process.env.FOO` typed.
+ *
+ * @example
+ *   DATABASE_URL: z.string().url(),
+ *   JWT_SECRET: z.string().min(32),
+ *   REDIS_URL: z.string().url().optional(),
+ */
+const envSchema = fromZod(
+  z.object({
+    PORT: z.coerce.number().default(3000),
+    // No default — an unset NODE_ENV must fail the boot rather than silently
+    // resolving to 'development', which would mount the unauthenticated
+    // DevTools surface in production. See src/index.ts.
+    NODE_ENV: z.enum(['development', 'production', 'test']),
+    LOG_LEVEL: z.string().default('info'),
+    DATABASE_URL: z.string().default('./data/adero.db'),
+    // No default — a signing secret with a fallback is a signing secret that
+    // ships to production. Boot must fail loudly when it is absent.
+    JWT_SECRET: z.string().min(32),
+    JWT_EXPIRES_IN: z.string().default('7d'),
+  }),
+)
+
+/**
+ * IMPORTANT — side effect: register the schema with kickjs's env cache
+ * **at module-load time**. `ConfigService` and `@Value()` both consume
+ * this cache, and they will fall back to the base schema (or undefined)
+ * if no extended schema has been registered before they're resolved.
+ *
+ * As long as `src/index.ts` imports this file (`import './config'`) at
+ * the top — before `bootstrap()` runs — every controller and service
+ * in the app sees the typed extended values.
+ */
+export const env = loadEnvFromSchema(envSchema)
+
+export default envSchema

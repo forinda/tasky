@@ -930,6 +930,158 @@ git commit -m "test: prove cross-user isolation for categories"
 
 ---
 
+### Task 5: Auth hardening carried from the Story 3 audit
+
+Four items the audit deferred. They are auth work, not categories work — kept as
+a separate task so the categories tasks above stay reviewable on their own, and
+so this one gets its own gate.
+
+**Files:**
+- Modify: `server/src/modules/auth/tokens.ts`, `password.ts`, `auth.controller.ts`
+- Modify: `server/src/modules/auth/__tests__/tokens.test.ts`, `password.test.ts`, `auth.controller.test.ts`
+
+- [ ] **Step 1: Prove the algorithm pin actually rejects, then keep it honest**
+
+`tokens.ts` passes `algorithms: [ALG]` to `jwtVerify`. Nothing tests it, so a
+future edit could drop it silently and every existing test would still pass.
+
+Do **not** build the attack token with `jose` — its key-length guard may refuse
+to sign HS512 with a 43-byte secret, and the test would then fail for the wrong
+reason. Construct it directly:
+
+```ts
+import { createHmac } from 'node:crypto'
+
+function forgeHs512(secret: string, sub: string): string {
+  const b64 = (o: unknown) =>
+    Buffer.from(JSON.stringify(o)).toString('base64url')
+  const header = b64({ alg: 'HS512', typ: 'JWT' })
+  const payload = b64({ sub, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600 })
+  const signature = createHmac('sha512', secret).update(`${header}.${payload}`).digest('base64url')
+  return `${header}.${payload}.${signature}`
+}
+```
+
+Add to `tokens.test.ts`:
+
+```ts
+  it('rejects a token whose header claims a different algorithm', async () => {
+    const secret = new ConfigService().get('JWT_SECRET')
+    // Signed with the REAL secret — only the `algorithms` pin rejects this.
+    expect(await makeTokens().verify(forgeHs512(secret, 'user-1'))).toBeNull()
+  })
+```
+
+**Mutation-check it:** temporarily remove `algorithms: [ALG]` from `jwtVerify`,
+confirm this case fails, restore. Quote both outcomes. If it still passes without
+the pin, the test is not testing the pin.
+
+- [ ] **Step 2: Require an expiry claim**
+
+A token with no `exp`, signed with the real secret, is currently accepted and
+never expires. Minting one requires the secret, so this is not outsider-exploitable
+— but a token that cannot expire is not a token you can revoke by waiting.
+
+In `tokens.ts`:
+
+```ts
+      const { payload } = await jwtVerify(token, this.secret, {
+        algorithms: [ALG],
+        // A token with no exp never expires. `sign()` always sets one; this
+        // makes that a verification requirement rather than a convention.
+        requiredClaims: ['exp'],
+      })
+```
+
+`requiredClaims?: string[]` is confirmed present on the installed `jose`.
+
+Add a test that forges a no-`exp` token with the real secret (same helper as
+Step 1, minus `exp`) and asserts `verify` returns null.
+
+- [ ] **Step 3: Store scrypt cost parameters in the hash**
+
+The format is `scrypt$<salt>$<hash>` with N, r, p hard-coded in the module. Raise
+N later — the correct response to faster hardware — and every existing user is
+locked out, because verification derives with the new cost against a hash made
+with the old one. Free to fix now; expensive once there are real users.
+
+Change the written format to `scrypt$<N>$<r>$<p>$<salt>$<hash>`, and have
+`verifyPassword` branch on segment count so any existing 3-segment hash still
+verifies with the current defaults:
+
+```ts
+const N = 16384
+const R = 8
+const P = 1
+
+export async function hashPassword(plain: string): Promise<string> {
+  const salt = randomBytes(SALT_LENGTH)
+  const derived = await scryptAsync(plain, salt, KEY_LENGTH, { N, r: R, p: P })
+  return `${PREFIX}$${N}$${R}$${P}$${salt.toString('hex')}$${derived.toString('hex')}`
+}
+```
+
+`verifyPassword` reads the parameters out of the stored value rather than the
+module constants — that is the entire point. A 3-segment legacy value uses the
+current defaults.
+
+Note `promisify(scrypt)` needs its type widened to accept the options argument.
+
+Add tests: a round-trip in the new format; a hand-written legacy 3-segment hash
+still verifying; and a hash carrying *different* cost parameters still verifying,
+which is the case that proves the parameters are read from the value.
+
+- [ ] **Step 4: Rate-limit login and signup**
+
+scrypt makes each attempt costly, but nothing caps attempts. Use the ctx-shaped
+guard, applied per-method:
+
+```ts
+import { Middleware, rateLimitGuard } from '@forinda/kickjs'
+
+const authLimit = () =>
+  rateLimitGuard({
+    max: 10,
+    windowMs: 60_000,
+    message: 'Too many attempts, please try again shortly',
+    // Keyed by IP. The default falls back to 'global' when no forwarding
+    // header is present, which would make one attacker throttle everyone.
+    keyGenerator: (ctx) => ctx.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() ?? 'unknown',
+  })
+```
+
+Apply `@Middleware(authLimit())` to `signup` and `login` only — not `/auth/me`,
+which is cheap and already requires a valid token.
+
+> **ponytail: in-memory counter, single process.** The default store is a
+> per-process Map, so two instances behind a load balancer each allow the full
+> quota. Fine for one node; swap in `KvRateLimitStore` before scaling out.
+
+Test that the 11th login attempt within the window returns 429. **Check whether
+the limiter leaks across tests** — an in-memory store shared between `it` blocks
+will make later cases fail confusingly. If it does, construct the guard per app
+rather than at module scope, and say so in your report.
+
+- [ ] **Step 5: Verify**
+
+```bash
+cd /home/forinda/Desktop/adero-api
+pnpm run typecheck
+pnpm run test
+```
+
+Both pass, output pristine. Report the total.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add -A
+git commit -m "fix: pin JWT algorithm and expiry, version scrypt params, rate-limit auth"
+```
+
+
+---
+
 ## Done when
 
 - [ ] `pnpm run typecheck` passes; `pnpm run test` passes, pristine.
@@ -940,6 +1092,10 @@ git commit -m "test: prove cross-user isolation for categories"
 - [ ] The list endpoint returns a paginated envelope and respects `limit`.
 - [ ] No response contains `ownerId`.
 - [ ] Removing an ownership predicate makes the isolation suite fail — verified, not assumed.
+- [ ] A token forged with `HS512` and the real secret is rejected; removing the `algorithms` pin makes that test fail.
+- [ ] A token with no `exp` claim is rejected.
+- [ ] Password hashes carry their cost parameters, and a legacy 3-segment hash still verifies.
+- [ ] The 11th login attempt in a minute returns 429; `/auth/me` is not rate-limited.
 
 ## Deliberately not in this story
 
@@ -951,5 +1107,8 @@ git commit -m "test: prove cross-user isolation for categories"
 ## Carried forward
 
 - **`AuthService.signup` pre-checks with a `SELECT` before inserting**, which is racy — two concurrent signups can both pass the check, and the constraint then surfaces as a 500 rather than a 409. `CategoriesService` uses the race-free catch-the-constraint form. Worth aligning signup to match.
-- Login still has no rate limit.
 - Story 5 will need Drizzle `relations()` for `/tasks/grouped`.
+- Token revocation — a leaked token cannot be killed before its `exp`. Belongs to
+  whichever story adds logout or password change.
+- Rate limiting uses a per-process in-memory counter; swap in `KvRateLimitStore`
+  before running more than one instance.

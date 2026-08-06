@@ -11,6 +11,7 @@ Task management API and web client.
 
 ```bash
 pnpm install
+cp server/.env.example server/.env   # NODE_ENV is required — boot fails without it
 pnpm dev:server
 ```
 

@@ -20,7 +20,10 @@ import { z } from 'zod'
 const envSchema = fromZod(
   z.object({
     PORT: z.coerce.number().default(3000),
-    NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    // No default — an unset NODE_ENV must fail the boot rather than silently
+    // resolving to 'development', which would mount the unauthenticated
+    // DevTools surface in production. See src/index.ts.
+    NODE_ENV: z.enum(['development', 'production', 'test']),
     LOG_LEVEL: z.string().default('info'),
     // DATABASE_URL: z.string().url(),
   }),

@@ -6,3 +6,9 @@ dist/
 .DS_Store
 # Agent scratch — briefs, ledgers, review packages. Never committed.
 .superpowers/
+
+# SQLite — a run from the repo root resolves DATABASE_URL against cwd
+*.db
+*.db-wal
+*.db-shm
+data/

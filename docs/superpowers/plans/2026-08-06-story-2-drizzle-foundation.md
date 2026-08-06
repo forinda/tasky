@@ -8,6 +8,17 @@
 
 **Tech Stack:** Drizzle ORM 0.45, drizzle-kit 0.31, better-sqlite3 13, KickJS v6 (Express), Vitest.
 
+> **⚠ Tasks 1 and 2 below are the ORIGINAL text and are superseded in places.**
+> Three human rulings landed mid-execution. What actually shipped:
+> schema is per-table under `server/src/db/schema/` (not a monolithic
+> `schema.ts`); `drizzle.config.ts` uses `schema: './src/db/schema/*.ts'`;
+> ownership foreign keys are `ON DELETE restrict` (join-table keys stayed
+> `cascade`); every key is `ON UPDATE cascade`. **Ignore Task 2's
+> `onDelete: 'cascade'` blocks and its "if any cascade is missing… fix the
+> schema and regenerate" instruction — following that would undo a ruling.**
+> Test counts in Tasks 3-4 are also stale; the suite shipped at 10.
+> `plan.md` is the current source of truth.
+
 ## Global Constraints
 
 - Package manager is **pnpm**. Never invoke `npm` or `yarn`.

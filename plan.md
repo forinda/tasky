@@ -309,8 +309,22 @@ JWT_SECRET:     z.string().min(32),          // no default — boot fails withou
 JWT_EXPIRES_IN: z.string().default('7d'),
 ```
 
-Read via `@Value(...)`. `.env.test` sets `DATABASE_URL=:memory:`, so each test
-run starts clean with no file cleanup.
+**Reading these values — `@Value` does NOT work on a constructor parameter.** In
+`@forinda/kickjs@6.7.0` it is declared `PropertyDecorator`, so
+`constructor(@Value('JWT_SECRET') secret: string)` fails with `TS1239`. A
+defaulted parameter does not rescue it either: the container computes
+`paramCount = max(paramTypes.length, maxInjectIndex)` and would try to resolve
+`String` as a dependency.
+
+Three forms that do work:
+
+- `@Value('KEY')` on a **property** — its documented shape, resolved lazily on access.
+- `@Inject(ConfigService)` on a constructor parameter, then `config.get('KEY')` —
+  what `Database` does, and what Story 3's auth service should do for `JWT_SECRET`.
+- `getEnv('KEY')` at module scope, for values needed outside a class.
+
+`.env.test` sets `DATABASE_URL=:memory:`, so each test run starts clean with no
+file cleanup.
 
 ```ts
 // server/drizzle.config.ts
@@ -771,6 +785,41 @@ able to throw is the same commit that makes a leak exploitable.
 Both hooks take **raw Express args**, not `RequestContext`. That is engine
 coupling: fine while `kick.config.ts` pins `runtime: 'express'`, but it is the
 piece that breaks if the runtime ever moves to Fastify or h3.
+
+## 16c. Carried from Story 2 — traps for Story 3 and Story 5
+
+**`createTestApp({ isolated: true })` and adapters do not share a container.**
+`createTestApp` builds `Container.create()`, but `Application`'s constructor takes
+`Container.getInstance()` — the global singleton. `setup()` runs each adapter's
+`beforeStart` and builds the route table against the **global** container, while
+the isolated container handed back to the caller is a second, parallel graph. So:
+
+```ts
+const { expressApp, container } = await createTestApp({
+  modules: [AuthModule()], adapters: [SqliteAdapter()], isolated: true,
+})
+container.resolve(Database)   // ← a DIFFERENT, unmigrated :memory: database
+```
+
+seeds a user into a database the HTTP routes never see. Either drop `isolated`
+when passing adapters, or resolve `Database` off `app.getContainer()` — which is
+what `server/src/__tests__/app.test.ts` already does. Decide this before the first
+controller test is written, not after debugging a phantom empty table.
+
+The good news: `createTestApp` accepts `adapters`, so controller tests get real
+migrations by passing `SqliteAdapter()`. No new helper needed, and
+`server/src/test-setup.ts` means no per-file env boilerplate.
+
+**A migration failure under test is silent.** The framework swallows every
+`beforeStart` throw (`callHook` catches and logs), and `.env.test` sets
+`LOG_LEVEL=silent`. So a broken migration in a test run produces no output at all
+— it surfaces as a wall of `no such table: users`. If Story 3's auth tests fail
+that way, check migrations before debugging the auth code.
+
+**Story 5 will want `relations()`.** `server/src/db/schema/index.ts` exports the
+`schema` object but declares no Drizzle relations, so
+`db.query.tasks.findMany({ with: { categories: true } })` will not work for
+`/tasks/grouped`. Manual joins are fine — just don't discover it mid-story.
 
 ## 17. Constraints carried from `.agents/`
 

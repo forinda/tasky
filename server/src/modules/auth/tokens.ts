@@ -30,7 +30,13 @@ export class Tokens {
     try {
       // Pinning algorithms rejects a token whose header claims `none` or an
       // asymmetric alg — the classic JWT confusion attack.
-      const { payload } = await jwtVerify(token, this.secret, { algorithms: [ALG] })
+      const { payload } = await jwtVerify(token, this.secret, {
+        algorithms: [ALG],
+        // A token with no `exp` never expires. `sign()` always sets one, so
+        // this turns a convention into a verification requirement — otherwise
+        // anyone who can mint tokens can mint an immortal one.
+        requiredClaims: ['exp'],
+      })
       return typeof payload.sub === 'string' ? payload.sub : null
     } catch {
       return null

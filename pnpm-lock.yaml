@@ -6,7 +6,9 @@ settings:
 
 importers:
 
-  .:
+  .: {}
+
+  server:
     dependencies:
       '@forinda/kickjs':
         specifier: ^6.7.0

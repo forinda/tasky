@@ -12,13 +12,17 @@
     "typecheck": "kick typegen && tsc --noEmit",
     "typegen": "kick typegen",
     "lint": "eslint src/",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@forinda/kickjs": "^6.7.0",
     "@forinda/kickjs-schema": "^0.1.3",
     "@forinda/kickjs-swagger": "^7.1.0",
+    "better-sqlite3": "^13.0.3",
     "dotenv": "^17.3.1",
+    "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
     "reflect-metadata": "^0.2.2",
     "zod": "^4.3.6"
@@ -29,9 +33,11 @@
     "@forinda/kickjs-testing": "^7.0.2",
     "@forinda/kickjs-vite": "^8.0.0",
     "@swc/core": "^1.15.21",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/express": "^5.0.6",
     "@types/node": "^25.0.0",
     "@types/supertest": "^7.2.1",
+    "drizzle-kit": "^0.31.10",
     "prettier": "^3.8.1",
     "supertest": "^7.2.2",
     "typescript": "^7.0.2",

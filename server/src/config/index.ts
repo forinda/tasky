@@ -25,7 +25,7 @@ const envSchema = fromZod(
     // DevTools surface in production. See src/index.ts.
     NODE_ENV: z.enum(['development', 'production', 'test']),
     LOG_LEVEL: z.string().default('info'),
-    // DATABASE_URL: z.string().url(),
+    DATABASE_URL: z.string().default('./data/adero.db'),
   }),
 )
 

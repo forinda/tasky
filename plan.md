@@ -314,7 +314,7 @@ run starts clean with no file cleanup.
 
 ```ts
 // server/drizzle.config.ts
-{ dialect: 'sqlite', schema: './src/db/schema.ts', out: './src/db/migrations' }
+{ dialect: 'sqlite', schema: './src/db/schema/*.ts', out: './src/db/migrations' }
 ```
 
 Scripts: `db:generate` (`drizzle-kit generate`) and `db:studio`. There is no
@@ -672,7 +672,7 @@ Vitest plus React Testing Library, MSW for API mocking.
 | # | Story | Ships |
 |---|---|---|
 | 1 | **Workspace + strip** | Delete `users/` and the five placeholders; unwire from `bootstrap()`. Then move everything at the root into `server/`, add `packages: [server, web]` to `pnpm-workspace.yaml`, write the private root `package.json` with the five fan-out scripts, add a short workspace-level root `CLAUDE.md` (no root `.agents/` — `server/.agents/` stays the only copy), add `@forinda/kickjs-testing`. `pnpm -r typecheck` and `test` green, `pnpm dev:server` boots. |
-| 2 | **Drizzle foundation** | Deps, `drizzle.config.ts`, full `schema.ts`, `Database` service with FK + WAL pragmas, `SqliteAdapter`, `DATABASE_URL`, first migration. Test: boots, migrates, FK cascade fires, closes clean. |
+| 2 | **Drizzle foundation** | Deps, `drizzle.config.ts`, per-table `db/schema/` + `enums.ts`, `Database` service with FK + WAL pragmas, `SqliteAdapter`, `DATABASE_URL`, first migration. Test: boots, migrates, deleting a user who owns rows is refused, join rows still cascade, closes clean. |
 | 3 | **Auth module** | `UsersRepository`, scrypt hashing, `jose` JWT, signup/login/me, `CurrentUser` contributor, `JWT_SECRET`. Plus the two error-surface items below — they become testable the moment a route exists. Tests: duplicate email, wrong password, all four 401 paths, no `passwordHash` in any response. |
 | 4 | **Categories module** | Owner-scoped CRUD and paginated list, unique `(ownerId, name)`. First proof of the DI chain and the ownership pattern end to end. Cross-user isolation tests. |
 | 5 | **Tasks module** | Owner-scoped CRUD, `ctx.qs`/`ctx.paginate` list, transactional `categoryIds` writes, 422 on unknown or unowned category. Cross-user isolation tests. |

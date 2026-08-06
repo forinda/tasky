@@ -19,12 +19,17 @@ export const app = await bootstrap({
     // DevTools exposes the route table, DI graph, and adapter list with no
     // auth (`secret: false`). Never mount it in production.
     ...(isProduction ? [] : [DevToolsAdapter({ secret: false })]),
-    SwaggerAdapter({
-      info: {
-        title: 'Adero API',
-        description: 'Adero API',
-        version: '1.0.0',
-      },
-    }),
+    // Swagger mounts /docs, /redoc, and /openapi.json — the full API surface
+    // described in one place. Development only.
+    ...(isProduction ? []
+      : [
+          SwaggerAdapter({
+            info: {
+              title: 'Adero API',
+              description: 'Adero API',
+              version: '1.0.0',
+            },
+          }),
+        ]),
   ],
 })

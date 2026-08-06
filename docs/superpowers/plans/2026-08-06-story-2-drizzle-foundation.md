@@ -34,7 +34,7 @@
 
 | Path | Responsibility |
 |---|---|
-| `server/src/db/schema.ts` | Four Drizzle tables + inferred row types. No logic. |
+| `server/src/db/schema/` | One file per table + `enums.ts` (const arrays) + `timestamps.ts` + barrel `index.ts`. No logic. |
 | `server/src/db/database.ts` | `@Service() class Database` — owns the connection and Drizzle instance, applies pragmas. |
 | `server/src/db/migrations/` | drizzle-kit output. Committed. |
 | `server/drizzle.config.ts` | drizzle-kit CLI config. Build-time only. |
@@ -334,7 +334,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { eq } from 'drizzle-orm'
 import { resolve } from 'node:path'
 import { Database } from '../database'
-import { users, tasks } from '../schema'
+import { users, tasks, categories, taskCategories } from '../schema'
 
 const MIGRATIONS = resolve(import.meta.dirname, '../migrations')
 
@@ -363,7 +363,7 @@ describe('Database', () => {
     expect(fk).toBe(1)
   })
 
-  it('cascades task deletion when its owner is removed', () => {
+  it('refuses to delete a user who still owns tasks', () => {
     const database = freshDb()
 
     database.db.insert(users).values({
@@ -375,11 +375,35 @@ describe('Database', () => {
 
     database.db.insert(tasks).values({ id: 't1', ownerId: 'u1', title: 'Ship' }).run()
 
+    // ON DELETE restrict — a user's tasks have real value, so removing the
+    // owner must fail loudly rather than silently destroying them.
+    expect(() => database.db.delete(users).where(eq(users.id, 'u1')).run()).toThrow(
+      /FOREIGN KEY/i,
+    )
+
     expect(database.db.select().from(tasks).all()).toHaveLength(1)
+  })
 
-    database.db.delete(users).where(eq(users.id, 'u1')).run()
+  it('cascades join rows when a task is deleted', () => {
+    const database = freshDb()
 
-    expect(database.db.select().from(tasks).all()).toHaveLength(0)
+    database.db.insert(users).values({
+      id: 'u1',
+      email: 'a@example.com',
+      passwordHash: 'x',
+      name: 'A',
+    }).run()
+    database.db.insert(categories).values({ id: 'c1', ownerId: 'u1', name: 'Work' }).run()
+    database.db.insert(tasks).values({ id: 't1', ownerId: 'u1', title: 'Ship' }).run()
+    database.db.insert(taskCategories).values({ taskId: 't1', categoryId: 'c1' }).run()
+
+    expect(database.db.select().from(taskCategories).all()).toHaveLength(1)
+
+    // Join rows have no independent value, so they still cascade.
+    database.db.delete(tasks).where(eq(tasks.id, 't1')).run()
+
+    expect(database.db.select().from(taskCategories).all()).toHaveLength(0)
+    expect(database.db.select().from(categories).all()).toHaveLength(1)
   })
 
   it('rejects a task whose owner does not exist', () => {
@@ -392,7 +416,7 @@ describe('Database', () => {
 })
 ```
 
-The second and third cases are the ones that matter. SQLite ships with foreign keys **off by default**, so without the pragma every `onDelete: 'cascade'` in the schema is decorative and the third case would silently succeed.
+Cases 2-4 are the ones that matter. SQLite ships with foreign keys **off by default**, so without the pragma every `onDelete` clause in the schema is decorative: the restrict cases would silently succeed and the cascade case would silently leave orphans.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -459,9 +483,9 @@ cd /home/forinda/Desktop/adero-api
 pnpm --filter ./server exec vitest run src/db/__tests__/database.test.ts
 ```
 
-Expected: PASS, 3 tests.
+Expected: PASS, 4 tests.
 
-If the cascade test fails but the pragma test passes, the migration SQL is missing its `ON DELETE cascade` clauses — return to Task 2 Step 4.
+If a restrict or cascade case fails but the pragma case passes, the migration SQL has the wrong `ON DELETE` action on that foreign key — return to Task 2 and regenerate from a corrected schema.
 
 - [ ] **Step 5: Run the full suite and typecheck**
 
@@ -470,7 +494,7 @@ pnpm run typecheck
 pnpm run test
 ```
 
-Expected: both pass, 5 tests total (2 smoke + 3 database), output pristine.
+Expected: both pass, 6 tests total (2 smoke + 4 database), output pristine.
 
 - [ ] **Step 6: Confirm no stray database files appeared**
 
@@ -662,7 +686,7 @@ pnpm run typecheck
 pnpm run test
 ```
 
-Expected: both pass, 7 tests total (2 smoke + 3 database + 2 app), output pristine.
+Expected: both pass, 8 tests total (2 smoke + 4 database + 2 app), output pristine.
 
 - [ ] **Step 8: Verify the dev server boots and creates the database file**
 
@@ -717,7 +741,7 @@ cd /home/forinda/Desktop/adero-api
 pnpm run test
 ```
 
-Expected: 8 tests, all passing, output pristine.
+Expected: 9 tests, all passing, output pristine.
 
 - [ ] **Step 11: Confirm no database artifacts are staged**
 
@@ -739,10 +763,10 @@ git commit -m "feat: add SqliteAdapter, aggregate adapters, and cover the entry 
 ## Done when
 
 - [ ] `pnpm run typecheck` passes from the repo root.
-- [ ] `pnpm run test` passes with 8 tests, output pristine.
+- [ ] `pnpm run test` passes with 9 tests, output pristine.
 - [ ] `pnpm run dev:server` boots, migrates, and creates `server/data/adero.db`.
 - [ ] A production build serves with `/_debug`, `/docs`, `/redoc`, `/openapi.json` all 404.
-- [ ] Deleting a user cascades to their tasks; inserting a task with an unknown `ownerId` throws.
+- [ ] Deleting a user who owns tasks throws; deleting a task removes its join rows but leaves the category; inserting a task with an unknown `ownerId` throws.
 - [ ] `server/src/index.ts` contains no adapter literals — they live in `server/src/adapters/index.ts`.
 - [ ] `git status` is clean of `*.db`, `*.db-wal`, `*.db-shm`, and `data/`.
 

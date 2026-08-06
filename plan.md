@@ -89,7 +89,7 @@ they are no longer the type source for responses.
 ```
 server/src/
   db/
-    schema.ts             users, tasks, categories, taskCategories + $inferSelect types
+    schema/               one file per table + enums.ts, timestamps.ts, barrel index.ts
     database.ts           @Service() class Database — connection + drizzle instance
     migrations/           drizzle-kit output, committed
   adapters/
@@ -142,7 +142,7 @@ users
 
 tasks
   id          text, uuid, PK
-  ownerId     text → users.id, not null, on delete cascade
+  ownerId     text → users.id, not null, on delete RESTRICT, on update cascade
   title       text, not null
   description text, nullable
   priority    text $type<'low' | 'medium' | 'high'>, default 'medium'
@@ -153,7 +153,7 @@ tasks
 
 categories
   id          text, uuid, PK
-  ownerId     text → users.id, not null, on delete cascade
+  ownerId     text → users.id, not null, on delete RESTRICT, on update cascade
   name        text, not null
   color       text, nullable
   createdAt   integer, timestamp_ms
@@ -161,10 +161,21 @@ categories
   UNIQUE (ownerId, name)
 
 taskCategories
-  taskId      text → tasks.id, on delete cascade
-  categoryId  text → categories.id, on delete cascade
+  taskId      text → tasks.id, on delete cascade, on update cascade
+  categoryId  text → categories.id, on delete cascade, on update cascade
   PRIMARY KEY (taskId, categoryId)
 ```
+
+**Delete behaviour is deliberately split.** The two ownership keys are
+`RESTRICT`: a user's tasks and categories have real value, so removing the owner
+must fail loudly rather than silently destroying their data. Account deletion
+therefore becomes an explicit, ordered operation whenever it is added — not a
+side effect. The two join keys stay `CASCADE`: a join row has no independent
+value, so deleting a task or a category should clean up its own links.
+
+**Every foreign key is `ON UPDATE CASCADE`.** IDs are UUIDs and are not expected
+to change, so this is a safety net rather than a workflow — but if one ever is
+rewritten, the references follow instead of breaking.
 
 Text UUIDs over autoincrement integers: safe to expose in URLs and non-guessable.
 Timestamps as `integer({ mode: 'timestamp_ms' })` — SQLite has no date type, and
@@ -173,13 +184,15 @@ this mode hands back real `Date` objects.
 SQLite has no native enum, so `status` and `priority` are text columns typed via
 Drizzle's `$type<>` and validated by the Zod request schemas.
 
-`taskCategories` carries no `ownerId`. Both sides already cascade from `users`,
-and a join row can only exist between a task and a category the same user owns —
-enforced at write time, see §7.
+`taskCategories` carries no `ownerId`. A join row can only be written between a
+task and a category the same user owns — enforced at write time, see §7 — so the
+column would be a third copy of an ownership fact the two referenced rows already
+carry.
 
 **Foreign keys are off by default in SQLite.** `Database` must issue
-`PRAGMA foreign_keys = ON` on connect, or every `on delete cascade` above is
-silently decorative. `PRAGMA journal_mode = WAL` on the same line for concurrent
+`PRAGMA foreign_keys = ON` on connect, or every `ON DELETE` and `ON UPDATE`
+clause above is silently decorative — the restricts would not restrict and the
+cascades would leave orphans. `PRAGMA journal_mode = WAL` on the same line for concurrent
 read throughput.
 
 ## 6. Authentication

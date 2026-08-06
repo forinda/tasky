@@ -657,7 +657,10 @@ scroll containers, and keyboard fallbacks — gets its own budget.
   client filter is silently dropped.
 - Contributors must **return** their value — assigning `ctx.currentUser = x`
   sticks to one `RequestContext` instance and silently vanishes.
-- `DevToolsAdapter` mounts only when `env.NODE_ENV !== 'production'`. Its
+- Read env values with `getEnv('KEY')` from `@forinda/kickjs`, not a named import
+  from `./config` and not raw `process.env`. `getEnv` is typed off the generated
+  `KickEnv` interface and keeps `import './config'` a pure side-effect import.
+- `DevToolsAdapter` mounts only when `getEnv('NODE_ENV') !== 'production'`. Its
   `secret: false` setting is an explicit opt-out of authentication on a surface
   that exposes the route table, DI graph, and adapter list. Whether Swagger
   needs the same gate is a Story 6 decision.

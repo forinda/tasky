@@ -220,18 +220,17 @@ Replace the whole file with:
 
 ```ts
 import 'reflect-metadata'
-// Importing './config' first registers the extended env schema with kickjs
-// **before** any controller / service / @Value gets resolved. Without this
-// line ConfigService.get('YOUR_KEY') returns undefined because the cached
-// schema would still be the base shape. The named `env` import still runs
-// that side effect — position matters, not the import form.
-import { env } from './config'
-import { bootstrap, expressRuntime } from '@forinda/kickjs'
+// Side-effect import — registers the extended env schema with kickjs
+// **before** any controller / service / @Value gets resolved. Without
+// this line ConfigService.get('YOUR_KEY') returns undefined because the
+// cached schema would still be the base shape.
+import './config'
+import { bootstrap, expressRuntime, getEnv } from '@forinda/kickjs'
 import { SwaggerAdapter } from '@forinda/kickjs-swagger'
 import { DevToolsAdapter } from '@forinda/kickjs-devtools'
 import { modules } from './modules'
 
-const isProduction = env.NODE_ENV === 'production'
+const isProduction = getEnv('NODE_ENV') === 'production'
 
 // Export the app for the Vite plugin (dev mode) and createTestApp.
 export const app = await bootstrap({
@@ -258,8 +257,15 @@ The `middlewares: [mdWare()]` option is gone entirely.
 unconditionally. The adapter's option type is `secret?: string | false`, and the
 package's documented usage is `DevToolsAdapter({ secret: getEnv('DEVTOOLS_SECRET') })`
 — so `false` is an explicit opt-out of authentication on a surface that exposes
-internal structure. Gating on `NODE_ENV` is the agreed fix. `env` is the validated
-value from the Zod schema in `src/config/index.ts`, not raw `process.env`.
+internal structure. Gating on `NODE_ENV` is the agreed fix.
+
+Read the value with `getEnv('NODE_ENV')`, not a named import from `./config` and
+not raw `process.env`. `getEnv` reads the env cache that `./config` registers, and
+its return type comes from the generated `KickEnv` interface — which
+`.kickjs/types/kick__env.ts` derives from the Zod schema in `src/config/index.ts`
+— so the value is typed `'development' | 'production' | 'test'` and schema-coerced.
+This also keeps `import './config'` a pure side-effect import, which is what the
+first-import constraint is actually about.
 
 Swagger is deliberately left mounted in all environments for now; whether it
 should be gated too is a Story 6 decision.

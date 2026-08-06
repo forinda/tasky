@@ -2,9 +2,6 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { eq } from 'drizzle-orm'
 import { resolve } from 'node:path'
-// Side-effect import — registers the extended env schema so ConfigService
-// resolves DATABASE_URL. `.env.test` sets it to ':memory:'.
-import '../../config'
 import { ConfigService } from '@forinda/kickjs'
 import { Database } from '../database'
 import { users, tasks, categories, taskCategories } from '../schema'

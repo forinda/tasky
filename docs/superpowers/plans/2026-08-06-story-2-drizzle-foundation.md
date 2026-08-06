@@ -330,6 +330,10 @@ Create `server/src/db/__tests__/database.test.ts`:
 
 ```ts
 import { describe, it, expect, afterEach } from 'vitest'
+// Side-effect import — registers the extended env schema so ConfigService
+// resolves DATABASE_URL. `.env.test` sets it to ':memory:'.
+import '../../config'
+import { ConfigService } from '@forinda/kickjs'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { eq } from 'drizzle-orm'
 import { resolve } from 'node:path'
@@ -346,7 +350,7 @@ afterEach(() => {
 })
 
 function freshDb(): Database {
-  const database = new Database(':memory:')
+  const database = new Database(new ConfigService())
   migrate(database.db, { migrationsFolder: MIGRATIONS })
   open = database
   return database
@@ -436,7 +440,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import SqliteConnection from 'better-sqlite3'
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import { Service, Value } from '@forinda/kickjs'
+import { ConfigService, Inject, Service } from '@forinda/kickjs'
 import { schema } from './schema'
 
 // NOTE: better-sqlite3's default export is itself named `Database`. It is
@@ -446,7 +450,13 @@ export class Database {
   readonly connection: SqliteConnection.Database
   readonly db: BetterSQLite3Database<typeof schema>
 
-  constructor(@Value('DATABASE_URL') url: string) {
+  // `@Value` is declared `PropertyDecorator` in this version, so it cannot
+  // annotate a constructor parameter. Injecting `ConfigService` instead keeps
+  // the env dependency explicit and lets a test construct the class directly
+  // with `new Database(new ConfigService())`.
+  constructor(@Inject(ConfigService) config: ConfigService) {
+    const url = config.get('DATABASE_URL')
+
     if (url !== ':memory:') {
       // better-sqlite3 will not create missing parent directories — it throws
       // SQLITE_CANTOPEN, which reads like a permissions problem rather than a
@@ -475,7 +485,14 @@ export class Database {
 }
 ```
 
-`@Value('DATABASE_URL')` is a property-or-parameter decorator, so the constructor form above is valid and keeps the class directly constructible in tests (`new Database(':memory:')`) while DI supplies the env value in production.
+**Why `ConfigService` and not `@Value`.** In this version `Value` is declared
+`PropertyDecorator`, so `constructor(@Value('DATABASE_URL') url: string)` fails
+to compile with `TS1239`. A defaulted parameter does not help either: the
+container computes `paramCount = max(paramTypes.length, maxInjectIndex)`, so it
+would still try to resolve `String` as a dependency. Injecting `ConfigService`
+keeps the dependency explicit, resolves by type with no registration, and leaves
+the class directly constructible in tests via `new Database(new ConfigService())`
+— verified working under vitest, where `.env.test` supplies `:memory:`.
 
 - [ ] **Step 4: Run the test to verify it passes**
 

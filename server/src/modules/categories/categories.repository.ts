@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, like } from 'drizzle-orm'
 import { Autowired, Repository, type ParsedQuery } from '@forinda/kickjs'
-import { Database } from '../../db/database'
-import { categories, type Category } from '../../db/schema'
+import { Database } from '@/db/database'
+import { categories, type Category } from '@/db/schema'
 
 export interface CreateCategoryInput {
   name: string

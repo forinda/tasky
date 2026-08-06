@@ -1,14 +1,16 @@
-import { and, asc, count, desc, eq, like, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, like, or, sql, type SQL } from 'drizzle-orm'
 import { Autowired, Repository, type FilterItem, type ParsedQuery } from '@forinda/kickjs'
-import { Database } from '../../db/database'
+import { Database } from '@/db/database'
 import {
   TASK_PRIORITIES,
   TASK_STATUSES,
+  categories,
+  taskCategories,
   tasks,
   type Task,
   type TaskPriority,
   type TaskStatus,
-} from '../../db/schema'
+} from '@/db/schema'
 
 export interface CreateTaskInput {
   title: string
@@ -141,6 +143,85 @@ export class TasksRepository {
       .returning()
       .all()
     return row ?? null
+  }
+
+  /**
+   * Which of `ids` this owner actually holds. An id belonging to someone else
+   * and an id that does not exist are both simply absent from the result —
+   * indistinguishable, so the 422 the service raises cannot be used to probe
+   * for other users' category ids.
+   *
+   * Synchronous: callers use it before opening a transaction.
+   */
+  ownedCategoryIds(ownerId: string, ids: string[]): string[] {
+    if (ids.length === 0) return []
+
+    return this.database.db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(and(eq(categories.ownerId, ownerId), inArray(categories.id, ids)))
+      .all()
+      .map((row) => row.id)
+  }
+
+  /** Synchronous — used inside and outside transactions. */
+  findCategoryIds(taskId: string): string[] {
+    return this.database.db
+      .select({ id: taskCategories.categoryId })
+      .from(taskCategories)
+      .where(eq(taskCategories.taskId, taskId))
+      .all()
+      .map((row) => row.id)
+  }
+
+  /**
+   * SYNCHRONOUS BY NECESSITY. better-sqlite3's `transaction()` is declared
+   * `(fn: (tx) => T) => T` — it does not await. An async callback would return
+   * a promise the driver never waits on, so the statements would land outside
+   * the transaction and a failure part-way would leave the task row written
+   * with no links. Do every async thing before calling this.
+   */
+  createWithCategories(ownerId: string, input: CreateTaskInput, categoryIds: string[]): Task {
+    return this.database.db.transaction((tx) => {
+      const [task] = tx
+        .insert(tasks)
+        .values({ ...input, description: input.description ?? null, ownerId })
+        .returning()
+        .all()
+
+      if (categoryIds.length > 0) {
+        tx.insert(taskCategories)
+          .values(categoryIds.map((categoryId) => ({ taskId: task.id, categoryId })))
+          .run()
+      }
+
+      return task
+    })
+  }
+
+  /** Replaces the set wholesale. Synchronous, for the same reason as above. */
+  replaceCategories(taskId: string, ownerId: string, categoryIds: string[]): boolean {
+    return this.database.db.transaction((tx) => {
+      // Ownership checked INSIDE the transaction, so a concurrent delete
+      // cannot slip between the check and the write.
+      const [owned] = tx
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(and(eq(tasks.id, taskId), eq(tasks.ownerId, ownerId)))
+        .all()
+
+      if (!owned) return false
+
+      tx.delete(taskCategories).where(eq(taskCategories.taskId, taskId)).run()
+
+      if (categoryIds.length > 0) {
+        tx.insert(taskCategories)
+          .values(categoryIds.map((categoryId) => ({ taskId, categoryId })))
+          .run()
+      }
+
+      return true
+    })
   }
 
   async remove(id: string, ownerId: string): Promise<boolean> {

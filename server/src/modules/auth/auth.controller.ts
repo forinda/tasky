@@ -10,7 +10,7 @@ import {
   type RateLimitStore,
 } from '@forinda/kickjs'
 import { ApiBearerAuth, ApiPublic, ApiTags } from '@forinda/kickjs-swagger'
-import { CurrentUser } from '../../contributors/current-user.contributor'
+import { CurrentUser } from '@/contributors/current-user.contributor'
 import { AuthService } from './auth.service'
 import { signupSchema } from './dtos/signup.dto'
 import { loginSchema } from './dtos/login.dto'

@@ -1,5 +1,5 @@
 import { Autowired, HttpException, Service, type ParsedQuery } from '@forinda/kickjs'
-import type { Category } from '../../db/schema'
+import type { Category } from '@/db/schema'
 import { CategoriesRepository } from './categories.repository'
 import type { CreateCategoryDTO } from './dtos/create-category.dto'
 import type { UpdateCategoryDTO } from './dtos/update-category.dto'

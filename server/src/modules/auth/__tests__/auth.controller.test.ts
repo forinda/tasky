@@ -3,7 +3,7 @@ import request from 'supertest'
 import { ConfigService, Container } from '@forinda/kickjs'
 import { createTestApp } from '@forinda/kickjs-testing'
 import { SignJWT } from 'jose'
-import { SqliteAdapter } from '../../../adapters/sqlite.adapter'
+import { SqliteAdapter } from '@/adapters/sqlite.adapter'
 import { AuthModule } from '../auth.module'
 import { authRateLimitStore } from '../auth.controller'
 

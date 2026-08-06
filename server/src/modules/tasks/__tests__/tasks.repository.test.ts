@@ -2,8 +2,8 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { ConfigService } from '@forinda/kickjs'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { resolve } from 'node:path'
-import { Database } from '../../../db/database'
-import { users } from '../../../db/schema'
+import { Database } from '@/db/database'
+import { users } from '@/db/schema'
 import { TasksRepository } from '../tasks.repository'
 
 const MIGRATIONS = resolve(import.meta.dirname, '../../../db/migrations')

@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { ConfigService } from '@forinda/kickjs'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { resolve } from 'node:path'
-import { Database } from '../../../db/database'
+import { Database } from '@/db/database'
 import { UsersRepository } from '../users.repository'
 
 const MIGRATIONS = resolve(import.meta.dirname, '../../../db/migrations')

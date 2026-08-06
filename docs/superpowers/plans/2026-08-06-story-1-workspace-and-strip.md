@@ -240,13 +240,19 @@ export const app = await bootstrap({
     // DevTools exposes the route table, DI graph, and adapter list with no
     // auth (`secret: false`). Never mount it in production.
     ...(isProduction ? [] : [DevToolsAdapter({ secret: false })]),
-    SwaggerAdapter({
-      info: {
-        title: 'Adero API',
-        description: 'Adero API',
-        version: '1.0.0',
-      },
-    }),
+    // Swagger mounts /docs, /redoc, and /openapi.json — the full API surface
+    // described in one place. Development only.
+    ...(isProduction
+      ? []
+      : [
+          SwaggerAdapter({
+            info: {
+              title: 'Adero API',
+              description: 'Adero API',
+              version: '1.0.0',
+            },
+          }),
+        ]),
   ],
 })
 ```
@@ -267,8 +273,9 @@ its return type comes from the generated `KickEnv` interface — which
 This also keeps `import './config'` a pure side-effect import, which is what the
 first-import constraint is actually about.
 
-Swagger is deliberately left mounted in all environments for now; whether it
-should be gated too is a Story 6 decision.
+Swagger is gated the same way, in its own separate `...(isProduction ? [] : [...])`
+spread — it mounts `/docs`, `/redoc`, and `/openapi.json`, which is just as much
+of an unauthenticated information surface as DevTools.
 
 - [ ] **Step 8: Rewrite `src/modules/index.ts` as an empty chain**
 
@@ -442,8 +449,11 @@ Create `.gitignore` at the repo root. `server/.gitignore` already carries the de
 node_modules/
 dist/
 .env
+*.local
 *.log
 .DS_Store
+# Agent scratch — briefs, ledgers, review packages. Never committed.
+.superpowers/
 ```
 
 - [ ] **Step 8: Write the root `README.md`**
@@ -539,8 +549,8 @@ Expected: lines of the form `src/index.ts => server/src/index.ts`. If git record
 
 ## Done when
 
-- [ ] `git log --oneline` shows four commits.
-- [ ] `ls -a` at the root shows only `.git`, `.gitignore`, `.agents`, `CLAUDE.md`, `README.md`, `docs`, `node_modules`, `package.json`, `plan.md`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `server`.
+- [ ] `git log --oneline` shows eleven or more commits (this plan's tasks alone produce four; later fixes and rulings on top of Story 1 add more).
+- [ ] `ls -a` at the root shows only `.git`, `.gitignore`, `.agents`, `CLAUDE.md`, `README.md`, `docs`, `node_modules`, `package.json`, `plan.md`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `server`, `.vscode`, `.superpowers`.
 - [ ] `pnpm run typecheck` passes.
 - [ ] `pnpm run test` passes with 2 tests.
 - [ ] `pnpm run dev:server` boots on port 3000.

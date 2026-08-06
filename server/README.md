@@ -56,7 +56,7 @@ Copy `.env.example` to `.env` and configure:
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `3000` | Server port |
-| `NODE_ENV` | *(required)* | Environment — no default; the built artifact (`node dist/index.js`) fails to boot if it is unset |
+| `NODE_ENV` | *(required)* | Environment — no default; the built artifact (`node dist/index.js`) fails to boot if it is unset. Any value other than `production` mounts DevTools (`/_debug`) and Swagger (`/docs`, `/redoc`, `/openapi.json`) with no authentication — production deployments MUST set `NODE_ENV=production` |
 
 ## Learn More
 

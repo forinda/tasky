@@ -694,6 +694,28 @@ status changes through the card menu. Shipping 11 first means the board is
 usable while drag-and-drop — the piece most likely to eat time on touch targets,
 scroll containers, and keyboard fallbacks — gets its own budget.
 
+### Story 2 readiness notes
+
+Carried forward from the Story 1 final review so they are not lost before
+Story 2 (Drizzle foundation) starts:
+
+- `pnpm-workspace.yaml` must gain `'better-sqlite3': true` under `allowBuilds`
+  **in the same commit that adds the dependency**. It is a native module; pnpm
+  10 silently skips unlisted build scripts, so install appears to succeed and
+  the adapter then fails at boot with a `Could not locate the bindings file`
+  error that reads like a code bug, not a missing allow-list entry.
+- Create `server/src/adapters/index.ts` when `SqliteAdapter` lands. A third
+  adapter inlined into `server/src/index.ts` is exactly the shape the
+  thin-entry-file rule forbids. The two `isProduction` spreads move there and
+  stay separate.
+- Add `*.db`, `*.db-wal`, `*.db-shm` to `server/.gitignore` in the same commit
+  — WAL mode creates all three on first boot.
+- Nothing currently imports `server/src/index.ts` in a test; the smoke test
+  builds its own app via `createTestApp({ modules: [] })`. The adapter list,
+  the production gate, and the `import './config'` ordering have zero
+  coverage. Add a test that imports `{ app }` from `../index` when adding
+  `SqliteAdapter`.
+
 ## 17. Constraints carried from `.agents/`
 
 - `defineAdapter()` / `definePlugin()` / `defineModule()` factories — never
@@ -718,8 +740,10 @@ scroll containers, and keyboard fallbacks — gets its own budget.
   `KickEnv` interface and keeps `import './config'` a pure side-effect import.
 - `DevToolsAdapter` mounts only when `getEnv('NODE_ENV') !== 'production'`. Its
   `secret: false` setting is an explicit opt-out of authentication on a surface
-  that exposes the route table, DI graph, and adapter list. Whether Swagger
-  needs the same gate is a Story 6 decision.
+  that exposes the route table, DI graph, and adapter list. `SwaggerAdapter` is
+  gated the same way, in its own separate `...(isProduction ? [] : [...])`
+  spread — `/docs`, `/redoc`, and `/openapi.json` are just as much of an
+  unauthenticated information surface.
 - After the move, re-run `kick g agents -f` from `server/` so its `.agents/`
   reflects the new layout. The root `CLAUDE.md` and `.agents/` are maintained by
   hand and must describe the workspace, not just the server.

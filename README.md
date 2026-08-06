@@ -11,7 +11,7 @@ Task management API and web client.
 
 ```bash
 pnpm install
-cp server/.env.example server/.env   # sets PORT; required by the built artifact
+cp server/.env.example server/.env   # sets NODE_ENV; required by the built artifact (pnpm dev:server works without it)
 pnpm dev:server
 ```
 

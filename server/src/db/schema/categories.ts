@@ -9,9 +9,12 @@ export const categories = sqliteTable(
     id: text('id').primaryKey().$defaultFn(randomUUID),
     // A user's categories have independent value — deleting the owning user
     // must fail loudly rather than silently destroying their categories.
+    // IDs are UUIDs and aren't expected to change, so onUpdate cascade is a
+    // safety net, not a workflow: if one is ever rewritten, references
+    // follow instead of breaking.
     ownerId: text('owner_id')
       .notNull()
-      .references(() => users.id, { onDelete: 'restrict' }),
+      .references(() => users.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
     name: text('name').notNull(),
     color: text('color'),
     ...timestamps,

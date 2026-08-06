@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "98c5f372-9bb2-4ebb-bfe6-4de57d4c014e",
+  "id": "8b3a6eb7-0cdd-4a01-884c-5c875e0af1ac",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "categories": {
@@ -72,7 +72,7 @@
             "id"
           ],
           "onDelete": "restrict",
-          "onUpdate": "no action"
+          "onUpdate": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -110,7 +110,7 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "cascade"
         },
         "task_categories_category_id_categories_id_fk": {
           "name": "task_categories_category_id_categories_id_fk",
@@ -123,7 +123,7 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -221,7 +221,7 @@
             "id"
           ],
           "onDelete": "restrict",
-          "onUpdate": "no action"
+          "onUpdate": "cascade"
         }
       },
       "compositePrimaryKeys": {},

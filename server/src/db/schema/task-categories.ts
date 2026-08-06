@@ -12,10 +12,10 @@ export const taskCategories = sqliteTable(
   {
     taskId: text('task_id')
       .notNull()
-      .references(() => tasks.id, { onDelete: 'cascade' }),
+      .references(() => tasks.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
     categoryId: text('category_id')
       .notNull()
-      .references(() => categories.id, { onDelete: 'cascade' }),
+      .references(() => categories.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   },
   (t) => [primaryKey({ columns: [t.taskId, t.categoryId] })],
 )

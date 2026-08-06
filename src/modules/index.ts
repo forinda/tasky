@@ -1,8 +1,5 @@
 import { defineModules } from '@forinda/kickjs'
-import { UsersModule } from './users/users.module'
 
-// Remove HelloModule and run: kick g module <name>
-// `defineModules()` returns a chainable list — `kick g module` appends
-// `.mount(NewModule())` to the chain on every generation.
+// Modules are appended here by `kick g module <name>` as
+// `.mount(NewModule())` on the chain below.
 export const modules = defineModules()
-  .mount(UsersModule())

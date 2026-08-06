@@ -456,8 +456,9 @@ export class Database {
 
     this.connection = new SqliteConnection(url)
 
-    // SQLite defaults foreign_keys to OFF. Without this, every
-    // `onDelete: 'cascade'` in schema.ts is silently inert.
+    // SQLite defaults foreign_keys to OFF. Without this, every ON DELETE and
+    // ON UPDATE clause in db/schema/ is silently inert — the restricts would
+    // not restrict, and the cascades would leave orphans.
     this.connection.pragma('foreign_keys = ON')
     // WAL lets readers and a writer proceed concurrently. Not supported for
     // in-memory databases, so it is skipped there.

@@ -7,9 +7,11 @@ export const categories = sqliteTable(
   'categories',
   {
     id: text('id').primaryKey().$defaultFn(randomUUID),
+    // A user's categories have independent value — deleting the owning user
+    // must fail loudly rather than silently destroying their categories.
     ownerId: text('owner_id')
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+      .references(() => users.id, { onDelete: 'restrict' }),
     name: text('name').notNull(),
     color: text('color'),
     ...timestamps,

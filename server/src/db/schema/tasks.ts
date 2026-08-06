@@ -8,9 +8,11 @@ export const tasks = sqliteTable(
   'tasks',
   {
     id: text('id').primaryKey().$defaultFn(randomUUID),
+    // A user's tasks have independent value — deleting the owning user must
+    // fail loudly rather than silently destroying their tasks.
     ownerId: text('owner_id')
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+      .references(() => users.id, { onDelete: 'restrict' }),
     title: text('title').notNull(),
     description: text('description'),
     // SQLite has no enum. $type<> gives the compile-time union; the Zod

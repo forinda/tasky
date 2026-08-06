@@ -2,9 +2,11 @@ import { primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { categories } from './categories'
 import { tasks } from './tasks'
 
-// No ownerId here: both sides already cascade from users, and a join row can
-// only be written between a task and a category the same user owns — enforced
-// at write time in Story 5.
+// No ownerId here: a join row can only be written between a task and a
+// category the same user owns — enforced at write time in Story 5. Both
+// sides still cascade from their own table (a join row has no independent
+// value), but deleting the owning user no longer cascades — see the
+// `restrict` on tasks.ownerId / categories.ownerId.
 export const taskCategories = sqliteTable(
   'task_categories',
   {

@@ -192,3 +192,43 @@ describe('GET /api/v1/auth/me', () => {
     expect(res.status).toBe(201)
   })
 })
+
+describe('auth hardening', () => {
+  it('treats email as case-insensitive', async () => {
+    const { expressApp } = await appFor()
+    await request(expressApp)
+      .post('/api/v1/auth/signup')
+      .send({ ...VALID, email: 'Case@Example.com' })
+
+    // Same human. Without normalisation SQLite's BINARY-collated unique index
+    // would happily create a second account, and ownership hangs off users.id.
+    const dupe = await request(expressApp)
+      .post('/api/v1/auth/signup')
+      .send({ ...VALID, email: 'case@example.com' })
+    expect(dupe.status).toBe(409)
+
+    const login = await request(expressApp)
+      .post('/api/v1/auth/login')
+      .send({ email: 'CASE@EXAMPLE.COM', password: VALID.password })
+    expect(login.status).toBe(200)
+  })
+
+  it('returns 409 rather than 500 when concurrent signups collide', async () => {
+    const { expressApp } = await appFor()
+    const body = { ...VALID, email: 'race@example.com' }
+
+    // The old check-then-insert let all five past the pre-check; four hit the
+    // raw driver error and surfaced as 500s carrying SQL text and a stack.
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        request(expressApp).post('/api/v1/auth/signup').send(body),
+      ),
+    )
+
+    const statuses = results.map((r) => r.status).sort()
+    expect(statuses.filter((s) => s === 201)).toHaveLength(1)
+    expect(statuses.filter((s) => s === 409)).toHaveLength(4)
+    expect(statuses).not.toContain(500)
+    expect(JSON.stringify(results.map((r) => r.body))).not.toContain('UNIQUE constraint')
+  })
+})

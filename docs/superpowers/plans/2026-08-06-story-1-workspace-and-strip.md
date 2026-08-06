@@ -220,22 +220,27 @@ Replace the whole file with:
 
 ```ts
 import 'reflect-metadata'
-// Side-effect import — registers the extended env schema with kickjs
-// **before** any controller / service / @Value gets resolved. Without
-// this line ConfigService.get('YOUR_KEY') returns undefined because the
-// cached schema would still be the base shape.
-import './config'
+// Importing './config' first registers the extended env schema with kickjs
+// **before** any controller / service / @Value gets resolved. Without this
+// line ConfigService.get('YOUR_KEY') returns undefined because the cached
+// schema would still be the base shape. The named `env` import still runs
+// that side effect — position matters, not the import form.
+import { env } from './config'
 import { bootstrap, expressRuntime } from '@forinda/kickjs'
 import { SwaggerAdapter } from '@forinda/kickjs-swagger'
 import { DevToolsAdapter } from '@forinda/kickjs-devtools'
 import { modules } from './modules'
+
+const isProduction = env.NODE_ENV === 'production'
 
 // Export the app for the Vite plugin (dev mode) and createTestApp.
 export const app = await bootstrap({
   modules,
   runtime: expressRuntime(),
   adapters: [
-    DevToolsAdapter({ secret: false }),
+    // DevTools exposes the route table, DI graph, and adapter list with no
+    // auth (`secret: false`). Never mount it in production.
+    ...(isProduction ? [] : [DevToolsAdapter({ secret: false })]),
     SwaggerAdapter({
       info: {
         title: 'Adero API',
@@ -247,7 +252,17 @@ export const app = await bootstrap({
 })
 ```
 
-The `middlewares: [mdWare()]` option is gone entirely. `DevToolsAdapter` and `SwaggerAdapter` stay — they are the only two adapters that do real work.
+The `middlewares: [mdWare()]` option is gone entirely.
+
+**On the DevTools gate:** the scaffold mounted `DevToolsAdapter({ secret: false })`
+unconditionally. The adapter's option type is `secret?: string | false`, and the
+package's documented usage is `DevToolsAdapter({ secret: getEnv('DEVTOOLS_SECRET') })`
+— so `false` is an explicit opt-out of authentication on a surface that exposes
+internal structure. Gating on `NODE_ENV` is the agreed fix. `env` is the validated
+value from the Zod schema in `src/config/index.ts`, not raw `process.env`.
+
+Swagger is deliberately left mounted in all environments for now; whether it
+should be gated too is a Story 6 decision.
 
 - [ ] **Step 8: Rewrite `src/modules/index.ts` as an empty chain**
 
@@ -524,6 +539,7 @@ Expected: lines of the form `src/index.ts => server/src/index.ts`. If git record
 - [ ] `pnpm run test` passes with 2 tests.
 - [ ] `pnpm run dev:server` boots on port 3000.
 - [ ] `grep -rn "mdWare\|my-adapter\|my-plugin\|myGuard\|authorize.contributor" server/src` returns nothing.
+- [ ] `DevToolsAdapter` is mounted only when `env.NODE_ENV !== 'production'`.
 
 ## Next
 

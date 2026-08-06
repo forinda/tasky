@@ -657,6 +657,10 @@ scroll containers, and keyboard fallbacks — gets its own budget.
   client filter is silently dropped.
 - Contributors must **return** their value — assigning `ctx.currentUser = x`
   sticks to one `RequestContext` instance and silently vanishes.
+- `DevToolsAdapter` mounts only when `env.NODE_ENV !== 'production'`. Its
+  `secret: false` setting is an explicit opt-out of authentication on a surface
+  that exposes the route table, DI graph, and adapter list. Whether Swagger
+  needs the same gate is a Story 6 decision.
 - After the move, re-run `kick g agents -f` from `server/` so its `.agents/`
   reflects the new layout. The root `CLAUDE.md` and `.agents/` are maintained by
   hand and must describe the workspace, not just the server.

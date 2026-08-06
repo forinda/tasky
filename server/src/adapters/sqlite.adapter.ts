@@ -1,22 +1,19 @@
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { defineAdapter, type AdapterContext } from '@forinda/kickjs'
+import { createLogger, defineAdapter, type AdapterContext } from '@forinda/kickjs'
 import { Database } from '../db/database'
+
+const log = createLogger('SqliteAdapter')
 
 // Resolved from this file rather than process.cwd() so migrations are found
 // regardless of which directory the process was started from.
-//
-// Two candidates because the file lives at a different depth depending on
-// how it's run: unbundled (`src/adapters/sqlite.adapter.ts`, dev/tests) sits
-// one level below `src/db/migrations`'s parent; the production build
-// (`kick build`) bundles this file down into a flat `dist/index.js`, which
-// the Vite build does not copy `src/db/migrations` alongside — so the same
-// relative offset from `dist/` misses. Both candidates are checked and the
-// first that exists on disk wins.
 const MIGRATIONS_CANDIDATES = [
-  resolve(import.meta.dirname, '../db/migrations'), // dev: src/adapters -> src/db/migrations
-  resolve(import.meta.dirname, '../src/db/migrations'), // prod: dist -> src/db/migrations
+  // Production: `kick build` copies src/db/migrations to dist/migrations, so a
+  // deploy shipping only dist/ + node_modules/ is self-contained.
+  resolve(import.meta.dirname, './migrations'),
+  // Dev and tests: running unbundled from src/adapters/.
+  resolve(import.meta.dirname, '../db/migrations'),
 ]
 const MIGRATIONS_FOLDER =
   MIGRATIONS_CANDIDATES.find((path) => existsSync(path)) ?? MIGRATIONS_CANDIDATES[0]
@@ -24,10 +21,12 @@ const MIGRATIONS_FOLDER =
 /**
  * Owns the database lifecycle and nothing else — no query logic lives here.
  *
- * ponytail: migrations run on every boot rather than as a gated CLI step. A bad
- * migration takes the process down at startup instead of failing a deliberate
- * command. Acceptable for a single-file SQLite database; move to a gated step
- * before this ever points at a shared or production database.
+ * ponytail: migrations run on every boot rather than as a gated CLI step,
+ * with an explicit `process.exit(1)` on failure — the framework otherwise
+ * catches a `beforeStart` throw, logs "Adapter hook failed", and starts the
+ * server anyway, which would silently serve traffic against an unmigrated
+ * database. Acceptable for a single-file SQLite database; move to a gated
+ * CLI step before this ever targets a shared or production database.
  */
 export const SqliteAdapter = defineAdapter({
   name: 'SqliteAdapter',
@@ -37,8 +36,18 @@ export const SqliteAdapter = defineAdapter({
     return {
       beforeStart({ container }: AdapterContext): void {
         database = container.resolve(Database)
-        // Non-null: assigned on the line above, in the same synchronous call.
-        migrate(database!.db, { migrationsFolder: MIGRATIONS_FOLDER })
+
+        try {
+          // Non-null: assigned on the line above, in the same synchronous call.
+          migrate(database!.db, { migrationsFolder: MIGRATIONS_FOLDER })
+        } catch (error) {
+          // The framework catches a throw here, logs "Adapter hook failed",
+          // and starts the server anyway — which would serve traffic against
+          // an unmigrated database. Exit instead: a process that cannot
+          // migrate must not accept requests.
+          log.error(`migration failed from ${MIGRATIONS_FOLDER} — refusing to start`, error)
+          process.exit(1)
+        }
       },
 
       async shutdown(): Promise<void> {

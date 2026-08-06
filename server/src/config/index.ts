@@ -26,6 +26,10 @@ const envSchema = fromZod(
     NODE_ENV: z.enum(['development', 'production', 'test']),
     LOG_LEVEL: z.string().default('info'),
     DATABASE_URL: z.string().default('./data/adero.db'),
+    // No default — a signing secret with a fallback is a signing secret that
+    // ships to production. Boot must fail loudly when it is absent.
+    JWT_SECRET: z.string().min(32),
+    JWT_EXPIRES_IN: z.string().default('7d'),
   }),
 )
 

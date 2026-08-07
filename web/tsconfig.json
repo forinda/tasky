@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "types": [],
+    // The type bridge in src/types/kick-routes.d.ts reaches into the server's
+    // generated route types, which import the controller classes to infer
+    // response types. That drags decorated server source into this program, so
+    // it needs the server's decorator setting and path alias to resolve —
+    // even though no server code ends up in the bundle.
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    // Ordered fallback, and the order matters. shadcn generates `@/lib/utils`
+    // imports expecting THIS package's src, while the type bridge drags server
+    // source in whose own `@/db/schema` imports must still resolve. TS tries
+    // each entry in turn: web wins for anything it has, server catches the rest.
+    "paths": {
+      "@/*": ["./src/*", "../server/src/*"]
+    }
+  },
+  "include": ["src"]
+}

@@ -12,3 +12,6 @@ dist/
 *.db-wal
 *.db-shm
 data/
+
+# playwright-mcp scratch (snapshots, console logs, screenshots)
+.playwright-mcp/

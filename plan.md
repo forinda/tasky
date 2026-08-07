@@ -586,10 +586,21 @@ roughly one in twelve men has some form of color vision deficiency — and it al
 resolves the only remaining collision in the palette, sky `in_progress` sitting
 near violet accent at small sizes.
 
-**Type** — Inter throughout. Landing headlines at `clamp(2.75rem, 6vw, 4.5rem)`,
-weight 700, tracking `-0.03em`; the tight tracking at large size is most of what
-makes the Height and ClickUp headlines read as designed rather than defaulted.
-App UI at 14px base — board density depends on it.
+**Type** — a deliberate pairing, not one face everywhere. **Bricolage Grotesque
+Variable** for display (landing hero, page titles, empty states — nowhere else),
+**Geist Variable** for UI and body, **Geist Mono** for timestamps, counts, and
+ids. All self-hosted via `@fontsource-variable/*`: no external request, nothing
+to break under a strict CSP, no layout shift from a late webfont.
+
+The board is dense and functional, so the working face has to be excellent at
+13–14px with real tabular figures — Geist's job, same register as Inter without
+being the face every product already uses. Bricolage has a real width axis and
+editorial personality, which would be exhausting across a whole board and is
+exactly right for the few places the app speaks. Boldness spent in one place.
+
+Landing headlines at `clamp(2.5rem, 6vw, 4rem)`, weight 700, tracking `-0.03em`;
+the tight tracking at large size is most of what makes a headline read as
+designed rather than defaulted. App UI at 14px — board density depends on it.
 
 **Motion** — 150ms ease-out on hover and focus, 200ms on card drag. Everything
 wrapped in `prefers-reduced-motion`.

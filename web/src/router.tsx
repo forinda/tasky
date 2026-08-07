@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import { getToken } from '@/lib/token'
 import { Board, Landing, Login, Signup } from './routes/placeholders'
+import { Gallery } from './routes/gallery'
 
 /**
  * Story 10 wires real auth; the shape is settled now so later screens slot in
@@ -23,4 +24,8 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+  // Dev only. `import.meta.env.DEV` is substituted with a literal at build
+  // time, so this whole entry — and the Gallery import above — is dead code in
+  // production and drops out. Verified by grepping dist/, not assumed.
+  ...(import.meta.env.DEV ? [{ path: '/gallery', element: <Gallery /> }] : []),
 ])

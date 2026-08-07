@@ -124,7 +124,7 @@ export function Combobox({
                 className="w-full border-b bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
               />
               <CommandList className="max-h-64 overflow-y-auto p-1">
-                <CommandEmpty className="px-2 py-3 text-center text-meta text-muted-foreground">
+                <CommandEmpty className="px-2 py-3 text-center type-meta text-muted-foreground">
                   <span>{emptyMessage}</span>
                   {emptyAction ? <div className="mt-2">{emptyAction}</div> : null}
                 </CommandEmpty>

@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import { getToken } from '@/lib/token'
-import { Board, Landing, Login, Signup } from './routes/placeholders'
+import { Board, Login, Signup } from './routes/placeholders'
+import { Landing } from './routes/landing'
 import { Gallery } from './routes/gallery'
 
 /**

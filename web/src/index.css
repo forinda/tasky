@@ -39,43 +39,52 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.166 0.01 285.2);
 
-  /* The brand violet, not shadcn's near-black default. Violet deliberately:
-     priority and status need the warm and green ranges for meaning, so a red
-     brand would fight a red "high priority" pill. See plan.md §12. */
-  --primary: oklch(0.562 0.251 283.7);
+  /* Red brand. This overrides plan.md §12, which chose violet precisely so the
+     warm range stayed free for meaning — so the two collisions it predicted are
+     now real and are managed here rather than left to chance:
+
+       vs `--destructive`  A destructive button that looks like the primary
+                           button has no warning left in it. Destructive is
+                           therefore a markedly darker red (L 0.45 vs 0.57);
+                           side by side they read as different weights, not
+                           different shades of the same thing.
+       vs priority `high`  That red is a 6px dot that always ships the word
+                           "High" beside it, so it cannot be mistaken for a
+                           button. Left alone. */
+  --primary: oklch(0.57 0.209 27.5);
   --primary-foreground: oklch(1 0 0);
 
   --secondary: oklch(0.96 0.007 286.3);
   --secondary-foreground: oklch(0.166 0.01 285.2);
 
-  /* The neutral hover surface — deliberately not the brand violet. */
+  /* The neutral hover surface — deliberately not the brand red. */
   --accent: oklch(0.96 0.007 286.3);
   --accent-foreground: oklch(0.166 0.01 285.2);
 
   --muted: oklch(0.96 0.007 286.3);
   --muted-foreground: oklch(0.504 0.019 285.7);
 
-  /* Darker than `--color-priority-high`. That red is a 6px dot beside its own
-     word, where contrast is decorative; this one carries white button text and
-     has to clear 4.5:1 by itself. Same meaning, different job. */
-  --destructive: oklch(0.559 0.209 27.3);
+  /* Deliberately darker than `--primary`, not merely a different red. See the
+     note above: this is what keeps "Delete category" from looking like "Get
+     started free". */
+  --destructive: oklch(0.45 0.17 25);
   --destructive-foreground: oklch(1 0 0);
 
   --border: oklch(0.928 0.012 286.2);
   --input: oklch(0.928 0.012 286.2);
-  --ring: oklch(0.562 0.251 283.7);
+  --ring: oklch(0.57 0.209 27.5);
 
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.166 0.01 285.2);
-  --sidebar-primary: oklch(0.562 0.251 283.7);
+  --sidebar-primary: oklch(0.57 0.209 27.5);
   --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: oklch(0.96 0.007 286.3);
   --sidebar-accent-foreground: oklch(0.166 0.01 285.2);
   --sidebar-border: oklch(0.928 0.012 286.2);
-  --sidebar-ring: oklch(0.562 0.251 283.7);
+  --sidebar-ring: oklch(0.57 0.209 27.5);
 }
 
-/* The same tokens at inverted lightness. Chroma comes down with it — a violet
+/* The same tokens at inverted lightness. Chroma comes down with it — a red
    that reads as confident on white is glaring on near-black, and the priority
    hues need a lift in L to stay legible as small dots. */
 .dark {
@@ -87,7 +96,7 @@
   --popover: oklch(0.216 0.01 285.5);
   --popover-foreground: oklch(0.96 0.007 286.3);
 
-  --primary: oklch(0.68 0.19 283.7);
+  --primary: oklch(0.68 0.17 27.5);
   --primary-foreground: oklch(0.166 0.01 285.2);
 
   --secondary: oklch(0.28 0.012 285.6);
@@ -99,21 +108,21 @@
   --muted: oklch(0.28 0.012 285.6);
   --muted-foreground: oklch(0.72 0.02 285.7);
 
-  --destructive: oklch(0.7 0.18 25.3);
+  --destructive: oklch(0.58 0.17 25);
   --destructive-foreground: oklch(0.166 0.01 285.2);
 
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.68 0.19 283.7);
+  --ring: oklch(0.68 0.17 27.5);
 
   --sidebar: oklch(0.216 0.01 285.5);
   --sidebar-foreground: oklch(0.96 0.007 286.3);
-  --sidebar-primary: oklch(0.68 0.19 283.7);
+  --sidebar-primary: oklch(0.68 0.17 27.5);
   --sidebar-primary-foreground: oklch(0.166 0.01 285.2);
   --sidebar-accent: oklch(0.28 0.012 285.6);
   --sidebar-accent-foreground: oklch(0.96 0.007 286.3);
   --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.68 0.19 283.7);
+  --sidebar-ring: oklch(0.68 0.17 27.5);
 }
 
 @theme inline {
@@ -167,7 +176,7 @@
   /* ── Semantic hues ──────────────────────────────────────────────────────
      Meaning is never encoded in colour alone — every pill ships its word. That
      is an accessibility floor, and it is also what keeps sky `in_progress`
-     distinguishable from the violet primary at small sizes. These are the one
+     distinguishable from the red primary at small sizes. These are the one
      set of colours shadcn has no name for, so they keep ours. */
   --color-priority-low: oklch(0.554 0.041 257.4);
   --color-priority-medium: oklch(0.769 0.165 70.1);
@@ -224,7 +233,43 @@
   }
 }
 
-@utility text-display {
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* One orchestrated entrance, staggered by `animation-delay` at the call site.
+   The animation is declared *inside* the no-preference query rather than being
+   shortened by the global reduce rule above: a 0.01ms animation still starts at
+   `opacity: 0`, which is a flash. Someone who asked for less motion should get a
+   page that is simply already there.
+
+   Plain `@layer utilities`, not `@utility rise` — Tailwind flattened the media
+   query out of the `@utility` body and emitted a bare `.rise{animation:…}`, so
+   the guard existed in the source and not in the shipped stylesheet. Checked by
+   grepping the built CSS, which is the only place the answer is real. */
+@layer utilities {
+  @media (prefers-reduced-motion: no-preference) {
+    .rise {
+      animation: rise 500ms var(--ease-out-soft) both;
+    }
+  }
+}
+
+/* ── Type scale ─────────────────────────────────────────────────────────────
+   `type-*`, not `text-*`, and that prefix is load-bearing. tailwind-merge puts
+   every `text-…` class in one group, so `cn('text-meta', 'text-foreground')`
+   resolved to the *colour* and silently dropped the size — every Pill rendered
+   at 16px instead of 12px, and the same thing happened to EmptyState's guidance
+   line. Nothing looked broken; it just was not the type scale. Outside the
+   `text-` namespace there is no conflict to resolve. */
+@utility type-display {
   font-family: var(--font-display);
   font-size: clamp(2.5rem, 6vw, 4rem);
   font-weight: 700;
@@ -234,7 +279,7 @@
   line-height: 1.05;
 }
 
-@utility text-title {
+@utility type-title {
   font-family: var(--font-display);
   font-size: 1.5rem;
   font-weight: 600;
@@ -242,12 +287,12 @@
   line-height: 1.2;
 }
 
-@utility text-body {
+@utility type-body {
   font-size: 0.875rem;
   line-height: 1.5;
 }
 
-@utility text-meta {
+@utility type-meta {
   font-size: 0.75rem;
   line-height: 1.4;
 }

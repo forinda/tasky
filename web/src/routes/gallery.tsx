@@ -48,7 +48,7 @@ const DEMO_CATEGORIES: ComboboxItem[] = [
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="border-border border-t py-8">
-      <h2 className="text-meta text-muted-foreground mb-4 font-mono uppercase tracking-wider">{title}</h2>
+      <h2 className="type-meta text-muted-foreground mb-4 font-mono uppercase tracking-wider">{title}</h2>
       {children}
     </section>
   )
@@ -68,19 +68,19 @@ export function Gallery() {
 
   return (
     <main className="bg-background text-foreground mx-auto max-w-3xl px-6 py-12">
-      <h1 className="text-display">Components</h1>
-      <p className="text-muted-foreground text-body mt-2">
+      <h1 className="type-display">Components</h1>
+      <p className="text-muted-foreground type-body mt-2">
         Everything Stories 9 to 11 build from. Tab through this page — every control must show a
         focus ring.
       </p>
 
       <Section title="Type">
         <div className="space-y-3">
-          <p className="text-display">Ship it</p>
-          <p className="text-title">Page and dialog titles</p>
-          <p className="text-body">Body copy at 14px — the board runs on this.</p>
-          <p className="text-meta text-muted-foreground">Meta: pills, timestamps, counts</p>
-          <p className="font-mono text-meta">2026-08-07 · 14 tasks · 3 columns</p>
+          <p className="type-display">Ship it</p>
+          <p className="type-title">Page and dialog titles</p>
+          <p className="type-body">Body copy at 14px — the board runs on this.</p>
+          <p className="type-meta text-muted-foreground">Meta: pills, timestamps, counts</p>
+          <p className="font-mono type-meta">2026-08-07 · 14 tasks · 3 columns</p>
         </div>
       </Section>
 
@@ -154,7 +154,7 @@ export function Gallery() {
               <Pill key={s} kind="status" value={s} />
             ))}
           </div>
-          <p className="text-meta text-muted-foreground">
+          <p className="type-meta text-muted-foreground">
             Every pill carries its word. There is no prop that renders the dot alone.
           </p>
         </div>

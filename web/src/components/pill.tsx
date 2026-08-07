@@ -63,7 +63,7 @@ const DOT: {
  * The word is always rendered. That is structural, not a convention someone can
  * forget: there is no prop that produces the dot alone. Roughly one in twelve
  * men has some colour vision deficiency, and it is also what keeps sky
- * `in_progress` distinguishable from the violet brand at 12px.
+ * `in_progress` distinguishable from the red brand at 12px.
  */
 export function Pill({ kind, value, className }: PillProps) {
   // Narrowed on the discriminant rather than indexed with a cast: a cast here
@@ -76,7 +76,7 @@ export function Pill({ kind, value, className }: PillProps) {
   return (
     <span
       className={cn(
-        'text-meta inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-foreground',
+        'type-meta inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-foreground',
         className,
       )}
     >

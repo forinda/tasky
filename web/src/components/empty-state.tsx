@@ -50,7 +50,7 @@ export function EmptyState({
       <p className={cn('font-display font-semibold text-foreground', isPage ? 'text-2xl' : 'text-base')}>
         {title}
       </p>
-      <p className={cn('text-muted-foreground max-w-xs', isPage ? 'text-body' : 'text-meta')}>{guidance}</p>
+      <p className={cn('text-muted-foreground max-w-xs', isPage ? 'type-body' : 'type-meta')}>{guidance}</p>
       {action ? <div className={isPage ? 'mt-2' : 'mt-1'}>{action}</div> : null}
     </div>
   )

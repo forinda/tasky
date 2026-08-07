@@ -1,4 +1,5 @@
 import { createClient } from '@forinda/kickjs-client'
+import { authFetch } from '@/features/auth/session'
 import { getToken } from './token'
 
 /**
@@ -21,4 +22,8 @@ export const api = createClient<KickApi>({
     const token = getToken()
     return token ? { Authorization: `Bearer ${token}` } : {}
   },
+  // Every call goes through the 401-retry wrapper, so an expired access token
+  // is renewed and the request replayed without the caller knowing. Wiring it
+  // here rather than at each call site is what makes that guarantee total.
+  fetch: authFetch,
 })

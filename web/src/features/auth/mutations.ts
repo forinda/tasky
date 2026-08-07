@@ -11,7 +11,7 @@ export function useLogin() {
     mutationFn: (body: { email: string; password: string }) =>
       api.post('/auth/login', { body }),
     onSuccess: (result) => {
-      setToken(result.token)
+      setToken(result.accessToken)
       // Invalidate rather than seed: the /auth/me shape is the server's to
       // define, and seeding it here would duplicate that definition.
       void queryClient.invalidateQueries({ queryKey: authKeys.all })
@@ -26,7 +26,7 @@ export function useSignup() {
     mutationFn: (body: { email: string; password: string; name: string }) =>
       api.post('/auth/signup', { body }),
     onSuccess: (result) => {
-      setToken(result.token)
+      setToken(result.accessToken)
       void queryClient.invalidateQueries({ queryKey: authKeys.all })
     },
   })

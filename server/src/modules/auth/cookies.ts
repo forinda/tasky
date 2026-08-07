@@ -1,5 +1,3 @@
-import { getEnv } from '@forinda/kickjs'
-
 export const REFRESH_COOKIE = 'tasky_refresh'
 
 /**
@@ -33,7 +31,14 @@ interface CookieAttributes {
 function attributes(maxAgeMs?: number): CookieAttributes {
   return {
     httpOnly: true,
-    secure: getEnv('NODE_ENV') === 'production',
+    // `process.env` rather than `getEnv('NODE_ENV')`, and not by preference:
+    // web's tsconfig pulls this file into its program through the generated
+    // route-type bridge, where the server's KickEnv augmentation is not
+    // registered and `getEnv('NODE_ENV')` types its argument as `never`. The
+    // value is identical — the env schema has already refused to boot if
+    // NODE_ENV is unset, so nothing is being trusted here that was not
+    // validated at startup.
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     path: REFRESH_COOKIE_PATH,
     ...(maxAgeMs === undefined ? {} : { maxAge: Math.floor(maxAgeMs / 1000) }),

@@ -15,14 +15,35 @@ import { createTaskSchema } from './dtos/create-task.dto'
 import { moveTaskSchema } from './dtos/move-task.dto'
 import { updateTaskSchema } from './dtos/update-task.dto'
 import { TASK_QUERY_CONFIG } from './tasks.constants'
-import { TasksService, type TaskResponse } from './tasks.service'
+import type { TaskResponse } from './tasks.types'
+import { CreateTaskUseCase } from './use-cases/create-task.use-case'
+import { DeleteTaskUseCase } from './use-cases/delete-task.use-case'
+import { GetTaskUseCase } from './use-cases/get-task.use-case'
+import { GroupTasksUseCase } from './use-cases/group-tasks.use-case'
+import { ListTasksUseCase } from './use-cases/list-tasks.use-case'
+import { MoveTaskPositionUseCase } from './use-cases/move-task-position.use-case'
+import { UpdateTaskUseCase } from './use-cases/update-task.use-case'
 
-/** Class-level bearer security: every route here is protected. */
+/**
+ * Class-level bearer security: every route here is protected.
+ *
+ * No route reads `currentUser` and no route passes an owner id: the use cases
+ * take it from the request context themselves. An owner id that never appears
+ * in a signature is an owner id no handler can forget to pass, pass twice, or
+ * pass from the wrong place — the body and the query string being the two
+ * wrong places that matter.
+ */
 @Controller()
 @ApiTags('Tasks')
 @ApiBearerAuth()
 export class TasksController {
-  @Autowired() private readonly tasks!: TasksService
+  @Autowired() private readonly listTasks!: ListTasksUseCase
+  @Autowired() private readonly getTask!: GetTaskUseCase
+  @Autowired() private readonly groupTasks!: GroupTasksUseCase
+  @Autowired() private readonly createTask!: CreateTaskUseCase
+  @Autowired() private readonly updateTask!: UpdateTaskUseCase
+  @Autowired() private readonly moveTaskPosition!: MoveTaskPositionUseCase
+  @Autowired() private readonly deleteTask!: DeleteTaskUseCase
 
   /**
    * The return type is annotated because `ctx.paginate` is declared
@@ -36,11 +57,8 @@ export class TasksController {
    */
   @Get('/')
   async list(ctx: Ctx): Promise<PaginatedResponse<TaskResponse>> {
-    // ownerId comes from the verified token, never from the body or a query
-    // parameter. An owner id accepted from the request is not an owner id.
-    const owner = ctx.require('currentUser')
     return (await ctx.paginate(
-      (parsed) => this.tasks.list(owner.id, parsed),
+      (parsed) => this.listTasks.execute(parsed),
       TASK_QUERY_CONFIG,
     )) as unknown as PaginatedResponse<TaskResponse>
   }
@@ -52,27 +70,23 @@ export class TasksController {
     description:
       'Board view, not paginated. A task in several categories appears in each of those columns, and the 500 cap counts joined rows, so each of those links spends one.',
   })
-  async grouped(ctx: Ctx) {
-    const owner = ctx.require('currentUser')
-    return this.tasks.grouped(owner.id)
+  async grouped() {
+    return this.groupTasks.execute()
   }
 
   @Get('/:id')
   async get(ctx: Ctx) {
-    const owner = ctx.require('currentUser')
-    return this.tasks.get(ctx.params.id, owner.id)
+    return this.getTask.execute(ctx.params.id)
   }
 
   @Post('/', { body: createTaskSchema, name: 'CreateTask' })
   async create(ctx: Ctx) {
-    const owner = ctx.require('currentUser')
-    return reply.created(await this.tasks.create(owner.id, ctx.body))
+    return reply.created(await this.createTask.execute(ctx.body))
   }
 
   @Put('/:id', { body: updateTaskSchema, name: 'UpdateTask' })
   async update(ctx: Ctx) {
-    const owner = ctx.require('currentUser')
-    return this.tasks.update(ctx.params.id, owner.id, ctx.body)
+    return this.updateTask.execute(ctx.params.id, ctx.body)
   }
 
   @Patch('/:id/position', { body: moveTaskSchema, name: 'MoveTask' })
@@ -81,14 +95,12 @@ export class TasksController {
       'Reorder a task inside its column, or move it to another one. `afterId` names the task it lands directly below; null is the top. Positions are fractional, so this is a single row update.',
   })
   async move(ctx: Ctx) {
-    const owner = ctx.require('currentUser')
-    return this.tasks.move(ctx.params.id, owner.id, ctx.body)
+    return this.moveTaskPosition.execute(ctx.params.id, ctx.body)
   }
 
   @Delete('/:id')
   async remove(ctx: Ctx) {
-    const owner = ctx.require('currentUser')
-    await this.tasks.remove(ctx.params.id, owner.id)
+    await this.deleteTask.execute(ctx.params.id)
     return reply.noContent()
   }
 }

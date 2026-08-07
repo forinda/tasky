@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router'
 import { getToken } from '@/lib/token'
 import { useSessionBoot } from '@/features/auth/use-session'
 import { Board } from './routes/board'
+import { Categories } from './routes/categories'
 import { Login } from './routes/login'
 import { Signup } from './routes/signup'
 import { Landing } from './routes/landing'
@@ -36,6 +37,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <Board />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/categories',
+    element: (
+      <ProtectedRoute>
+        <Categories />
       </ProtectedRoute>
     ),
   },

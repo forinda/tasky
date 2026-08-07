@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm'
 import { categories } from './categories'
+import { refreshTokens } from './refresh-tokens'
 import { taskCategories } from './task-categories'
 import { tasks } from './tasks'
 import { users } from './users'
@@ -15,6 +16,11 @@ import { users } from './users'
 export const usersRelations = relations(users, ({ many }) => ({
   tasks: many(tasks),
   categories: many(categories),
+  refreshTokens: many(refreshTokens),
+}))
+
+export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
+  user: one(users, { fields: [refreshTokens.userId], references: [users.id] }),
 }))
 
 export const tasksRelations = relations(tasks, ({ one, many }) => ({

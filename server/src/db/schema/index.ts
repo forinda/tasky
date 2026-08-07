@@ -4,6 +4,9 @@ export type { TaskPriority, TaskStatus } from './enums'
 export { categories } from './categories'
 export type { Category, NewCategory } from './categories'
 
+export { refreshTokens } from './refresh-tokens'
+export type { RefreshToken, NewRefreshToken } from './refresh-tokens'
+
 export { taskCategories } from './task-categories'
 
 export { tasks } from './tasks'
@@ -14,17 +17,20 @@ export type { User, NewUser } from './users'
 
 export {
   categoriesRelations,
+  refreshTokensRelations,
   taskCategoriesRelations,
   tasksRelations,
   usersRelations,
 } from './relations'
 
 import { categories } from './categories'
+import { refreshTokens } from './refresh-tokens'
 import { taskCategories } from './task-categories'
 import { tasks } from './tasks'
 import { users } from './users'
 import {
   categoriesRelations,
+  refreshTokensRelations,
   taskCategoriesRelations,
   tasksRelations,
   usersRelations,
@@ -37,8 +43,10 @@ export const schema = {
   categories,
   tasks,
   taskCategories,
+  refreshTokens,
   usersRelations,
   categoriesRelations,
   tasksRelations,
   taskCategoriesRelations,
+  refreshTokensRelations,
 }

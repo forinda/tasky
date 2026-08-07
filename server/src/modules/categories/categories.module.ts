@@ -3,7 +3,13 @@ import { CurrentUser } from '@/contributors/current-user.contributor'
 import { CategoriesController } from './categories.controller'
 
 import.meta.glob(
-  ['./**/*.controller.ts', './**/*.service.ts', './**/*.repository.ts', '!./**/*.test.ts'],
+  [
+    './**/*.controller.ts',
+    './**/*.use-case.ts',
+    './**/*.service.ts',
+    './**/*.repository.ts',
+    '!./**/*.test.ts',
+  ],
   { eager: true },
 )
 

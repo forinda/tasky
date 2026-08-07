@@ -188,18 +188,17 @@ export function TaskSheet({ state, categories, onClose }: TaskSheetProps) {
             </div>
 
             <div className="grid gap-1.5">
-              <Label htmlFor="task-category">Category</Label>
-              {/* ponytail: single-select. The API takes many and the board shows
-                  many, but the ported Combobox only does one — multi-select is
-                  still in the somakwetu source if a caller needs it. */}
+              <Label htmlFor="task-category">Categories</Label>
+              {/* Plural, and multi-select — a task may carry several, which is
+                  what the API accepts, what the cards render, and what
+                  /tasks/grouped assumes. */}
               <Combobox
+                multi
                 id="task-category"
                 items={categories.map((c) => ({ value: c.id, label: c.name }))}
-                value={values.categoryIds[0] ?? null}
-                onChange={(value) =>
-                  setValues((v) => ({ ...v, categoryIds: value ? [value] : [] }))
-                }
-                placeholder="No category"
+                value={values.categoryIds}
+                onChange={(categoryIds) => setValues((v) => ({ ...v, categoryIds }))}
+                placeholder="No categories"
                 searchPlaceholder="Search categories"
                 emptyMessage="No categories yet."
               />

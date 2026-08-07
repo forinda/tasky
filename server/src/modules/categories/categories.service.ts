@@ -1,5 +1,7 @@
 import { Autowired, HttpException, Service, type ParsedQuery } from '@forinda/kickjs'
 import type { Category } from '@/db/schema'
+import { TasksRepository } from '@/modules/tasks/tasks.repository'
+import { toTaskResponse } from '@/modules/tasks/tasks.service'
 import { CategoriesRepository } from './categories.repository'
 import type { CreateCategoryDTO } from './dtos/create-category.dto'
 import type { UpdateCategoryDTO } from './dtos/update-category.dto'
@@ -40,11 +42,43 @@ function isUniqueViolation(error: unknown): boolean {
 
 @Service()
 export class CategoriesService {
-  constructor(@Autowired() private readonly repo: CategoriesRepository) {}
+  /**
+   * FIRST cross-module dependency in the app. Categories owns the ROUTE because
+   * the URL is category-shaped (`/categories/:id/tasks`); tasks owns the DATA,
+   * so the rows come from TasksRepository rather than a second tasks query
+   * written here. DI resolves by type from one container regardless of which
+   * module declared the class, so nothing extra needs registering — the value
+   * import above is what puts `@Repository()` on the metadata map.
+   */
+  constructor(
+    @Autowired() private readonly repo: CategoriesRepository,
+    @Autowired() private readonly tasks: TasksRepository,
+  ) {}
 
   async list(ownerId: string, parsed: ParsedQuery) {
     const { data, total } = await this.repo.listPaginated(ownerId, parsed)
     return { data: data.map(toCategoryResponse), total }
+  }
+
+  /**
+   * Tasks inside one category. The 404 comes off the CATEGORY lookup, never off
+   * an empty page: `listByCategory` returns `{ data: [], total: 0 }` for another
+   * owner's category id, which is exactly what a real empty category returns.
+   * Deciding from the page would make "not yours" indistinguishable from "yours
+   * but empty" in the wrong direction — a 200 leaking that the id is valid.
+   */
+  async listTasks(ownerId: string, categoryId: string, parsed: ParsedQuery) {
+    if (!(await this.repo.findById(categoryId, ownerId))) {
+      throw HttpException.notFound('Category not found')
+    }
+
+    const { data, total } = await this.tasks.listByCategory(ownerId, categoryId, parsed)
+    // ponytail: one link query per row (N+1), bounded by the page limit — same
+    // ceiling TasksService.list already carries. Fix both together or neither.
+    return {
+      data: data.map((task) => toTaskResponse(task, this.tasks.findCategoryIds(task.id))),
+      total,
+    }
   }
 
   async create(ownerId: string, dto: CreateCategoryDTO): Promise<CategoryResponse> {

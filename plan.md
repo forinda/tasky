@@ -293,6 +293,15 @@ new ones.
 a silent skip. Unowned and nonexistent are reported identically, so the response
 cannot be used to probe for other users' category IDs.
 
+**Search treats `%` and `_` as literal characters, not wildcards.** Both are
+LIKE metacharacters, so an unescaped term meant `?q=_nrelated` matched
+`unrelated`. An audit confirmed no scope escape and no injection — the query is
+parameterized — so this was a product call rather than a defect. Decided:
+escape `%`, `_` and the escape character itself, and emit `ESCAPE '\'`. Users
+type `_` in ordinary words and do not expect wildcard behaviour; a surprising
+match is worse than a missing feature. Drizzle's `like()` emits no ESCAPE
+clause, so the repositories build the predicate with raw `sql`.
+
 **`/tasks/grouped` is not paginated** — a board view wants the whole column.
 Total tasks returned are capped at 500 so it cannot become an unbounded table
 scan. Uncategorized tasks come last, in their own bucket.

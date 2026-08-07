@@ -20,8 +20,8 @@
      The accent sits in the violet family deliberately: priority and status need
      the warm and green ranges for meaning, so a red brand accent would fight a
      red "high priority" pill. See plan.md §12. */
-  --color-accent: #6d4aff;
-  --color-accent-hover: #5b3ae0;
+  --color-brand: #6d4aff;
+  --color-brand-hover: #5b3ae0;
   --color-ink: #0e0e13;
   --color-muted: #6b6b7b;
   --color-hairline: #e6e6ef;
@@ -47,6 +47,77 @@
   --duration-move: 200ms;
 }
 
+/* ── shadcn's semantic layer ────────────────────────────────────────────────
+   shadcn components are written against --primary/--background/--ring etc.
+   These MAP onto the tokens above rather than duplicating them: two palettes is
+   how a design system starts drifting on day one.
+
+   One collision, learned the hard way: shadcn's `accent` is NOT a brand colour,
+   it is the subtle hover surface (`bg-accent` on a ghost button). Our brand
+   token is therefore `--color-brand`, not `--color-accent` — naming it `accent`
+   meant `@theme inline` silently redefined it to the neutral, which turned the
+   focus ring near-white on a near-white canvas. Invisible focus rings look
+   exactly like working ones until someone tries to tab.
+
+   Raw values live in :root; @theme inline republishes them as --color-* so
+   Tailwind generates bg-primary, text-muted-foreground, and so on. */
+:root {
+  --radius: 0.5rem;
+
+  --background: var(--color-canvas);
+  --foreground: var(--color-ink);
+
+  --card: var(--color-surface);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-ink);
+
+  --primary: var(--color-brand);
+  --primary-foreground: #ffffff;
+
+  --secondary: #f1f1f6;
+  --secondary-foreground: var(--color-ink);
+
+  /* shadcn's neutral hover surface — deliberately not the brand violet. */
+  --accent: #f1f1f6;
+  --accent-foreground: var(--color-ink);
+
+  --muted: #f1f1f6;
+  --muted-foreground: var(--color-muted);
+
+  --destructive: var(--color-priority-high);
+  --destructive-foreground: #ffffff;
+
+  --border: var(--color-hairline);
+  --input: var(--color-hairline);
+  --ring: var(--color-brand);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
 @layer base {
   html {
     font-family: var(--font-sans);
@@ -63,7 +134,7 @@
      may set `outline: none`; override the colour if you need to, never remove
      the ring. */
   :focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--color-brand);
     outline-offset: 2px;
     border-radius: 2px;
   }

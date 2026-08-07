@@ -1,5 +1,6 @@
 import { Autowired, Controller, Delete, Get, Post, Put, reply, type Ctx } from '@forinda/kickjs'
 import { ApiBearerAuth, ApiTags } from '@forinda/kickjs-swagger'
+import { TASK_QUERY_CONFIG } from '@/modules/tasks/tasks.constants'
 import { CategoriesService } from './categories.service'
 import { createCategorySchema } from './dtos/create-category.dto'
 import { updateCategorySchema } from './dtos/update-category.dto'
@@ -29,6 +30,26 @@ export class CategoriesController {
     // parameter. An owner id accepted from the request is not an owner id.
     const owner = ctx.require('currentUser')
     return ctx.paginate((parsed) => this.categories.list(owner.id, parsed), QUERY_CONFIG)
+  }
+
+  /**
+   * The route lives here because the URL is category-shaped; the DATA is the
+   * tasks module's, reached through TasksRepository in the service. Reusing
+   * TASK_QUERY_CONFIG rather than a second list means filter/sort/search names
+   * are the same ones `/tasks` accepts — a client should not have to learn two
+   * vocabularies for the same rows.
+   *
+   * ponytail: enum filter VALUES are not validated here, so
+   * `?status=bogus` returns an empty page instead of the 422 `/tasks` gives.
+   * Lift TasksService.assertKnownFilterValues out of that class if it bites.
+   */
+  @Get('/:id/tasks')
+  async tasks(ctx: Ctx) {
+    const owner = ctx.require('currentUser')
+    return ctx.paginate(
+      (parsed) => this.categories.listTasks(owner.id, ctx.params.id, parsed),
+      TASK_QUERY_CONFIG,
+    )
   }
 
   @Post('/', { body: createCategorySchema, name: 'CreateCategory' })

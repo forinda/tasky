@@ -1,5 +1,5 @@
 import { Autowired, Controller, Delete, Get, Post, Put, reply, type Ctx } from '@forinda/kickjs'
-import { ApiBearerAuth, ApiTags } from '@forinda/kickjs-swagger'
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@forinda/kickjs-swagger'
 import { createTaskSchema } from './dtos/create-task.dto'
 import { updateTaskSchema } from './dtos/update-task.dto'
 import { TASK_QUERY_CONFIG } from './tasks.constants'
@@ -18,6 +18,18 @@ export class TasksController {
     // parameter. An owner id accepted from the request is not an owner id.
     const owner = ctx.require('currentUser')
     return ctx.paginate((parsed) => this.tasks.list(owner.id, parsed), TASK_QUERY_CONFIG)
+  }
+
+  // BEFORE '/:id', or the param route matches first and 'grouped' is read as a
+  // task id — a 404 that looks like a missing row rather than a routing bug.
+  @Get('/grouped')
+  @ApiOperation({
+    description:
+      'Board view, not paginated. A task in several categories appears in each of those columns, and the 500 cap counts joined rows, so each of those links spends one.',
+  })
+  async grouped(ctx: Ctx) {
+    const owner = ctx.require('currentUser')
+    return this.tasks.grouped(owner.id)
   }
 
   @Get('/:id')

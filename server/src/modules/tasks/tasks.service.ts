@@ -1,5 +1,6 @@
 import { Autowired, HttpException, Service, type ParsedQuery } from '@forinda/kickjs'
 import { TASK_PRIORITIES, TASK_STATUSES, type Task } from '@/db/schema'
+import { toCategoryResponse, type CategoryResponse } from '@/modules/categories/categories.service'
 import type { CreateTaskDTO } from './dtos/create-task.dto'
 import type { UpdateTaskDTO } from './dtos/update-task.dto'
 import { TasksRepository } from './tasks.repository'
@@ -29,6 +30,19 @@ export function toTaskResponse(task: Task, categoryIds: string[]): TaskResponse 
     updatedAt: task.updatedAt,
   }
 }
+
+/** One board column. `category: null` is the uncategorized bucket. */
+export interface GroupedColumn {
+  category: CategoryResponse | null
+  tasks: TaskResponse[]
+}
+
+/**
+ * The board is not paginated — a column with half its cards is a lie about the
+ * work — but it is not unbounded either. 500 JOINED ROWS, not 500 tasks: a task
+ * in three categories spends three of them.
+ */
+const GROUPED_CAP = 500
 
 /** The filterable fields whose values are closed sets. */
 const FILTER_ENUMS: Record<string, readonly string[]> = {
@@ -99,6 +113,45 @@ export class TasksService {
     }
   }
 
+  /**
+   * The board. One pass over the flat join rows folds each task's links back
+   * together, so nothing re-queries links per task.
+   *
+   * A task in two categories appears in BOTH columns — that is what a
+   * many-to-many board means, not double-counting. Every owned category gets a
+   * column even with no tasks: a column that vanishes when emptied is a board
+   * you cannot drag a card back onto. The uncategorized bucket is last and
+   * always present, so the client never has to synthesize it.
+   */
+  grouped(ownerId: string): GroupedColumn[] {
+    const { rows, categories } = this.repo.listGrouped(ownerId, GROUPED_CAP)
+
+    // Map keeps first-seen order, and the rows arrive oldest-first.
+    const seen = new Map<string, { task: Task; categoryIds: string[] }>()
+    for (const { task, categoryId } of rows) {
+      const entry = seen.get(task.id) ?? { task, categoryIds: [] }
+      if (categoryId) entry.categoryIds.push(categoryId)
+      seen.set(task.id, entry)
+    }
+
+    const columns = new Map(categories.map((c) => [c.id, [] as TaskResponse[]]))
+    const uncategorized: TaskResponse[] = []
+
+    for (const { task, categoryIds } of seen.values()) {
+      const response = toTaskResponse(task, categoryIds)
+      if (categoryIds.length === 0) uncategorized.push(response)
+      // `?.` and not `!`: both queries are owner-scoped, so a link to a column
+      // that isn't here cannot happen — and if it ever does, dropping the card
+      // beats throwing the whole board away.
+      else for (const id of categoryIds) columns.get(id)?.push(response)
+    }
+
+    return [
+      ...categories.map((c) => ({ category: toCategoryResponse(c), tasks: columns.get(c.id)! })),
+      { category: null, tasks: uncategorized },
+    ]
+  }
+
   async get(id: string, ownerId: string): Promise<TaskResponse> {
     const task = await this.repo.findById(id, ownerId)
     // 404, not 403 — a 403 would confirm the row exists and hand out an
@@ -122,16 +175,18 @@ export class TasksService {
     // Validate before writing anything, so a bad id cannot half-apply a patch.
     if (categoryIds) this.assertOwnedCategories(ownerId, categoryIds)
 
-    // Unconditional, including for a `{ categoryIds: [...] }`-only patch:
-    // `.set({ ...patch, updatedAt })` is valid with an empty patch, and taking
-    // a findById branch instead would leave `updatedAt` stale after a change
-    // the client can see — breaking polling, caching, and sort=updatedAt.
-    const task = await this.repo.update(id, ownerId, patch)
+    // ONE transaction for the columns and the links. The previous update +
+    // replaceCategories pair ran two, so a failure in the link step committed
+    // the column patch anyway and the client saw a half-applied write.
+    //
+    // The column patch is unconditional, including for a `{ categoryIds }`-only
+    // body: `.set({ ...patch, updatedAt })` is valid with an empty patch, and
+    // skipping it would leave `updatedAt` stale after a change the client can
+    // see — breaking polling, caching, and sort=updatedAt.
+    //
+    // Synchronous: better-sqlite3 transactions do not await.
+    const task = this.repo.updateWithCategories(id, ownerId, patch, categoryIds)
     if (!task) throw HttpException.notFound('Task not found')
-
-    if (categoryIds && !this.repo.replaceCategories(id, ownerId, categoryIds)) {
-      throw HttpException.notFound('Task not found')
-    }
 
     return toTaskResponse(task, categoryIds ?? this.repo.findCategoryIds(id))
   }

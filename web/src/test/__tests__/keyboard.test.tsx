@@ -139,7 +139,7 @@ describe('the task sheet', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
-  it('known defect: closing the sheet drops focus to the body instead of returning it to the card', async () => {
+  it('returns focus to the card when the sheet closes', async () => {
     seedTodo('Alpha')
     const { user } = render(<Board />, { route: '/app' })
 
@@ -151,29 +151,21 @@ describe('the task sheet', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 
     /*
-     * §15 asks for focus to return to whatever opened the sheet. It does not,
-     * and this is real in a browser rather than a jsdom artifact — the cause is
-     * in the markup, not the environment.
+     * This pinned the opposite behaviour when it was written, and finding that
+     * is what got it fixed.
      *
-     * Radix's modal `Dialog.Content` sets
-     *   onCloseAutoFocus: (e) => { e.preventDefault(); triggerRef.current?.focus() }
-     * The `preventDefault()` cancels FocusScope's own restore-to-the-previously-
-     * focused-element, and the fallback focuses `Dialog.Trigger`. TaskSheet has
-     * no trigger — it is opened from board state by a card several components
-     * away — so `triggerRef.current` is null, nothing is focused, and focus
-     * lands on `<body>`. A keyboard user who opens a card and presses Escape
-     * restarts their next Tab from the top of the page.
+     * Radix's modal `Dialog.Content` sets `onCloseAutoFocus` to
+     * `preventDefault()` then focus its `Trigger`. The preventDefault cancels
+     * FocusScope's own restore, and this sheet has no Trigger — it opens from
+     * board state, several components from the card — so nothing was focused
+     * and focus fell to `<body>`. A keyboard user who opened a card and pressed
+     * Escape restarted their next Tab from the top of the page.
      *
-     * The fix is a `onCloseAutoFocus` on SheetContent that refocuses the opener.
-     * This test pins the current behaviour so that fixing it fails here loudly
-     * and this assertion gets inverted, rather than the defect being re-fixed
-     * and re-broken unnoticed.
+     * The board now remembers what was focused when it opened the sheet and
+     * restores it. Asserting the card specifically, not merely "not body", so
+     * restoring focus to the wrong element still fails.
      */
-    expect(document.activeElement).toBe(document.body)
-    expect(document.activeElement).not.toBe(card)
-    // The card is still mounted, so this is focus being dropped, not the element
-    // disappearing out from under it.
-    expect(document.body).toContainElement(card)
+    await waitFor(() => expect(document.activeElement).toBe(card))
   })
 })
 
@@ -235,7 +227,7 @@ describe('the keyboard drag path', () => {
     )
   })
 
-  it('known defect: Space and Enter on a card start a drag, so the sheet cannot be opened from the keyboard', async () => {
+  it('opens the sheet on Enter, because only Space is the drag key', async () => {
     seedTodo('Alpha')
     const { user } = render(<Board />, { route: '/app' })
 
@@ -244,23 +236,37 @@ describe('the keyboard drag path', () => {
     await user.keyboard('{Enter}')
 
     /*
-     * dnd-kit's KeyboardSensor claims BOTH Space and Enter as its start keys and
-     * calls `preventDefault()` on the keydown, which cancels the button's own
-     * activation — so `onClick` never runs and the sheet never opens. The card
-     * is the drag handle and the "open" button at once, and the drag wins.
+     * dnd-kit's KeyboardSensor claims BOTH Space and Enter by default and
+     * `preventDefault()`s the keydown, which cancels the button's activation —
+     * so `onClick` never ran and a keyboard user could not open a task on the
+     * status board at all. The card is the drag handle and the open button at
+     * once, and the drag was winning both keys.
      *
-     * A keyboard user on the status board therefore cannot open a task at all.
-     * The control below proves this is the card's own wiring rather than the
-     * test setup: the very same component in the category view, where dragging
-     * is disabled and the dnd listeners are withheld, opens on Enter exactly as
-     * expected.
+     * The sensor is now configured with Space alone, leaving Enter to the
+     * button. Story 12 asserted that Space does NOT open the sheet and never
+     * asserted that Enter still does: the gesture being added was tested, the
+     * one it silently took over was not.
      */
+    expect(await screen.findByRole('dialog', { name: 'Task' })).toBeInTheDocument()
+  })
+
+  it('still picks the card up on Space, and does not open the sheet', async () => {
+    seedTodo('Alpha')
+    const { user } = render(<Board />, { route: '/app' })
+
+    const card = await screen.findByRole('button', { name: /Alpha/ })
+    card.focus()
+    await user.keyboard('{ }')
+
     await waitFor(() =>
       expect(document.querySelector('[aria-live]')).toHaveTextContent('Picked up Alpha.'),
     )
+    // One key, one action: picking up must not also open the sheet.
     expect(screen.queryByRole('dialog')).toBeNull()
 
-    // As above: end the gesture so its sensor does not outlive this test.
+    // End the gesture so its sensor does not outlive this test — a pickup left
+    // in flight keeps dnd-kit's document keydown listener alive past cleanup
+    // and swallows the next test's keystrokes.
     await user.keyboard('{Escape}')
     await waitFor(() =>
       expect(document.querySelector('[aria-live]')).toHaveTextContent(/Cancelled/i),

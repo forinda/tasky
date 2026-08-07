@@ -1,4 +1,5 @@
 import { useDroppable } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { PlusIcon } from 'lucide-react'
 import type { TaskStatus } from '@/db/schema'
 import { STATUS_LABELS } from '@/components/pill'
@@ -81,6 +82,10 @@ export function Column({
           isOver && 'outline-2 outline-offset-4 outline-ring/60',
         )}
       >
+        <SortableContext
+          items={tasks.map((task) => task.id)}
+          strategy={verticalListSortingStrategy}
+        >
         {isPending ? (
           // Three empty columns while loading is indistinguishable from a
           // first-run board — the "working app reads as broken" failure §14
@@ -119,10 +124,14 @@ export function Column({
             />
           )
         ) : (
+          // The context needs EVERY card id in this column, in render order —
+          // that ordering is what the drop handler reads to name the task the
+          // card landed below.
           tasks.map((task) => (
             <TaskCard key={task.id} task={task} categoryNames={categoryNames} onOpen={onOpen} />
           ))
         )}
+        </SortableContext>
       </div>
     </section>
   )

@@ -96,6 +96,15 @@ export function Board() {
   const [draggingId, setDraggingId] = useState<string | null>(null)
 
   const allTasks = columns.flatMap((q) => (q?.data?.data ?? []) as BoardTask[])
+
+  /**
+   * One column's tasks in the order the server returned them — which is
+   * `position` order, since the API sorts by it whenever a status filter is
+   * present. The drop handler reads this to name the neighbour, so it must be
+   * the same order the user is looking at.
+   */
+  const tasksByStatus = (status: TaskStatus): BoardTask[] =>
+    (columns[STATUSES.indexOf(status)]?.data?.data ?? []) as BoardTask[]
   const draggingTask = allTasks.find((t) => t.id === draggingId) ?? null
 
   const sensors = useSensors(
@@ -125,20 +134,71 @@ export function Board() {
     setDraggingId(String(event.active.id))
   }
 
+  /**
+   * Works out where the card actually landed.
+   *
+   * `over` is either a column (dropped on empty space, or on the column itself)
+   * or another card (dropped between two). Those are the two cases, and they
+   * name different things: a column says "which column", a card says "directly
+   * below which task".
+   */
+  function resolveDrop(
+    activeId: string,
+    overId: string,
+  ): { status: TaskStatus; afterId: string | null } | null {
+    const overTask = allTasks.find((t) => t.id === overId)
+    const status = (overTask?.status ?? overId) as TaskStatus
+    if (!STATUSES.includes(status)) return null
+
+    const column = tasksByStatus(status).filter((t) => t.id !== activeId)
+
+    // Dropped on the column itself rather than on a card: that is the empty
+    // space below the last card, so it goes to the bottom.
+    if (!overTask) return { status, afterId: column.at(-1)?.id ?? null }
+
+    // Dropped on a card. Which side depends on the direction of travel, and
+    // getting this wrong is the difference between a drag that lands where the
+    // user aimed and one that stops a slot short: dragging DOWN onto a card
+    // means "go below it", dragging UP means "go above it". A single rule for
+    // both directions always disappoints one of them.
+    const index = column.findIndex((t) => t.id === overId)
+    if (index === -1) return { status, afterId: null }
+
+    const movingWithinColumn = allTasks.find((t) => t.id === activeId)?.status === status
+    const fromIndex = tasksByStatus(status).findIndex((t) => t.id === activeId)
+    const movingDown = movingWithinColumn && fromIndex !== -1 && fromIndex < index + 1
+
+    if (movingDown) return { status, afterId: overId }
+    return { status, afterId: index === 0 ? null : column[index - 1].id }
+  }
+
   function onDragEnd(event: DragEndEvent) {
     setDraggingId(null)
 
     const taskId = String(event.active.id)
-    const target = event.over?.id
-    if (!target) return
+    if (!event.over) return
 
-    const nextStatus = String(target) as TaskStatus
     const task = allTasks.find((t) => t.id === taskId)
-    // Dropping a card back where it started is not a change. Issuing the write
-    // anyway would bump updatedAt and reorder the column for nothing.
-    if (!task || task.status === nextStatus) return
+    if (!task) return
 
-    moveTask.mutate({ id: taskId, status: nextStatus, from: task.status as TaskStatus, filters })
+    const drop = resolveDrop(taskId, String(event.over.id))
+    if (!drop) return
+
+    // A drop that changes nothing is not a write. Same column AND the same
+    // neighbour above means the card went back where it came from — issuing the
+    // request anyway would bump updatedAt and rebalance for no reason.
+    const currentColumn = tasksByStatus(task.status as TaskStatus)
+    const currentIndex = currentColumn.findIndex((t) => t.id === taskId)
+    const currentAfterId = currentIndex <= 0 ? null : currentColumn[currentIndex - 1].id
+    if (drop.status === task.status && drop.afterId === currentAfterId) return
+
+    moveTask.mutate({
+      id: taskId,
+      status: drop.status,
+      from: task.status as TaskStatus,
+      afterId: drop.afterId,
+      filters,
+    })
   }
 
   return (

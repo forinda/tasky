@@ -29,14 +29,8 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { Combobox, type ComboboxItem } from '@/components/ui/combobox'
-import { Pill, PRIORITY_LABELS, STATUS_LABELS } from '@/components/pill'
+import { Pill, PRIORITIES, STATUSES } from '@/components/pill'
 import { EmptyState } from '@/components/empty-state'
-import type { TaskPriority, TaskStatus } from '@/db/schema'
-
-// Keys of an exhaustive Record, so these lists cannot fall behind the server's
-// enums — and no server runtime code is pulled into the web bundle to get them.
-const PRIORITIES = Object.keys(PRIORITY_LABELS) as TaskPriority[]
-const STATUSES = Object.keys(STATUS_LABELS) as TaskStatus[]
 
 const DEMO_CATEGORIES: ComboboxItem[] = [
   { value: 'c1', label: 'Design system', description: '8 tasks' },

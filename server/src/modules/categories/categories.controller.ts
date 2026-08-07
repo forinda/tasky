@@ -1,7 +1,18 @@
-import { Autowired, Controller, Delete, Get, Post, Put, reply, type Ctx } from '@forinda/kickjs'
+import {
+  Autowired,
+  Controller,
+  Delete,
+  Get,
+  Post,
+  Put,
+  reply,
+  type Ctx,
+  type PaginatedResponse,
+} from '@forinda/kickjs'
 import { ApiBearerAuth, ApiTags } from '@forinda/kickjs-swagger'
 import { TASK_QUERY_CONFIG } from '@/modules/tasks/tasks.constants'
-import { CategoriesService } from './categories.service'
+import type { TaskResponse } from '@/modules/tasks/tasks.service'
+import { CategoriesService, type CategoryResponse } from './categories.service'
 import { createCategorySchema } from './dtos/create-category.dto'
 import { updateCategorySchema } from './dtos/update-category.dto'
 
@@ -25,11 +36,17 @@ export class CategoriesController {
   @Autowired() private readonly categories!: CategoriesService
 
   @Get('/')
-  async list(ctx: Ctx) {
+  // Annotated for the same reason as TasksController.list: `ctx.paginate` is
+  // typed `Promise<RuntimeResponse>`, which erases the payload and leaves the
+  // client unable to see `.data`.
+  async list(ctx: Ctx): Promise<PaginatedResponse<CategoryResponse>> {
     // ownerId comes from the verified token, never from the body or a query
     // parameter. An owner id accepted from the request is not an owner id.
     const owner = ctx.require('currentUser')
-    return ctx.paginate((parsed) => this.categories.list(owner.id, parsed), QUERY_CONFIG)
+    return (await ctx.paginate(
+      (parsed) => this.categories.list(owner.id, parsed),
+      QUERY_CONFIG,
+    )) as unknown as PaginatedResponse<CategoryResponse>
   }
 
   /**
@@ -44,12 +61,12 @@ export class CategoriesController {
    * Lift TasksService.assertKnownFilterValues out of that class if it bites.
    */
   @Get('/:id/tasks')
-  async tasks(ctx: Ctx) {
+  async tasks(ctx: Ctx): Promise<PaginatedResponse<TaskResponse>> {
     const owner = ctx.require('currentUser')
-    return ctx.paginate(
+    return (await ctx.paginate(
       (parsed) => this.categories.listTasks(owner.id, ctx.params.id, parsed),
       TASK_QUERY_CONFIG,
-    )
+    )) as unknown as PaginatedResponse<TaskResponse>
   }
 
   @Post('/', { body: createCategorySchema, name: 'CreateCategory' })

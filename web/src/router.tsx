@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import { getToken } from '@/lib/token'
 import { useSessionBoot } from '@/features/auth/use-session'
-import { Board } from './routes/placeholders'
+import { Board } from './routes/board'
 import { Login } from './routes/login'
 import { Signup } from './routes/signup'
 import { Landing } from './routes/landing'

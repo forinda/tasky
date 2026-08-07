@@ -65,18 +65,27 @@ export class TasksService {
    */
   private assertKnownFilterValues(parsed: ParsedQuery): void {
     for (const filter of parsed.filters) {
-      const allowed = FILTER_ENUMS[filter.field]
-      if (!allowed) continue
-
       // The framework parses the operator (eq/neq/gt/contains/…) but the
       // repository only implements `eq`. Silently treating `neq` as `eq`
       // returns the exact INVERSE of what was asked — a wrong answer the
       // client cannot detect. Reject until an operator is actually supported.
+      //
+      // This runs for EVERY filterable field. It used to sit behind the enum
+      // lookup below, which meant any field without a closed set of values
+      // skipped it — and `categoryId`, the first such field, would have
+      // re-opened the exact bug this guard was written to close.
       if (filter.operator !== 'eq') {
         throw HttpException.unprocessable(
           `Unsupported operator '${filter.operator}' for ${filter.field}. Only 'eq' is supported.`,
         )
       }
+
+      // Value validation only where the field has a closed set. `categoryId`
+      // deliberately has none: an id that is not yours matches nothing, and
+      // reporting it as invalid would let a client probe for other users'
+      // category ids one 422 at a time — the oracle closed everywhere else.
+      const allowed = FILTER_ENUMS[filter.field]
+      if (!allowed) continue
 
       if (!allowed.includes(filter.value)) {
         throw HttpException.unprocessable(

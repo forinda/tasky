@@ -76,6 +76,21 @@ function filterCondition(filter: FilterItem): SQL | undefined {
       return TASK_PRIORITIES.includes(filter.value as TaskPriority)
         ? eq(tasks.priority, filter.value as TaskPriority)
         : sql`1 = 0`
+    case 'categoryId':
+      // EXISTS, not a join. tasks↔categories is many-to-many, so joining would
+      // emit one row per matching link and a task in two categories would be
+      // counted twice — corrupting `total` in the pagination envelope while the
+      // page itself still looked right.
+      //
+      // No ownership check here, and none is needed: the surrounding query is
+      // already scoped to the owner's tasks, so a foreign category id matches
+      // nothing. That is also the desired answer — validating existence would
+      // let a client probe for other users' category ids one error at a time.
+      return sql`exists (
+        select 1 from ${taskCategories}
+        where ${taskCategories.taskId} = ${tasks.id}
+          and ${taskCategories.categoryId} = ${filter.value}
+      )`
     default:
       return undefined
   }

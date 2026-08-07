@@ -76,7 +76,7 @@ export function Pill({ kind, value, className }: PillProps) {
   return (
     <span
       className={cn(
-        'text-meta inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-foreground',
+        'type-meta inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-foreground',
         className,
       )}
     >

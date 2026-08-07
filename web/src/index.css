@@ -224,7 +224,36 @@
   }
 }
 
-@utility text-display {
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* One orchestrated entrance, staggered by `animation-delay` at the call site.
+   The animation is declared *inside* the no-preference query rather than being
+   shortened by the reduced-motion rule above: a 0.01ms animation still starts
+   at `opacity: 0`, which is a flash. Someone who asked for less motion should
+   get a page that is simply already there. */
+@utility rise {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: rise 500ms var(--ease-out-soft) both;
+  }
+}
+
+/* ── Type scale ─────────────────────────────────────────────────────────────
+   `type-*`, not `text-*`, and that prefix is load-bearing. tailwind-merge puts
+   every `text-…` class in one group, so `cn('text-meta', 'text-foreground')`
+   resolved to the *colour* and silently dropped the size — every Pill rendered
+   at 16px instead of 12px, and the same thing happened to EmptyState's guidance
+   line. Nothing looked broken; it just was not the type scale. Outside the
+   `text-` namespace there is no conflict to resolve. */
+@utility type-display {
   font-family: var(--font-display);
   font-size: clamp(2.5rem, 6vw, 4rem);
   font-weight: 700;
@@ -234,7 +263,7 @@
   line-height: 1.05;
 }
 
-@utility text-title {
+@utility type-title {
   font-family: var(--font-display);
   font-size: 1.5rem;
   font-weight: 600;
@@ -242,12 +271,12 @@
   line-height: 1.2;
 }
 
-@utility text-body {
+@utility type-body {
   font-size: 0.875rem;
   line-height: 1.5;
 }
 
-@utility text-meta {
+@utility type-meta {
   font-size: 0.75rem;
   line-height: 1.4;
 }

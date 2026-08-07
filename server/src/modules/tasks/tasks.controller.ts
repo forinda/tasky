@@ -8,8 +8,8 @@ import {
   Put,
   reply,
   type Ctx,
-  type PaginatedResponse,
 } from '@forinda/kickjs'
+import { paginate } from '@/shared/pagination'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@forinda/kickjs-swagger'
 import { createTaskSchema } from './dtos/create-task.dto'
 import { moveTaskSchema } from './dtos/move-task.dto'
@@ -45,22 +45,12 @@ export class TasksController {
   @Autowired() private readonly moveTaskPosition!: MoveTaskPositionUseCase
   @Autowired() private readonly deleteTask!: DeleteTaskUseCase
 
-  /**
-   * The return type is annotated because `ctx.paginate` is declared
-   * `Promise<RuntimeResponse>` — it erases the payload type, so every paginated
-   * route reached `kick typegen` as an opaque blob and the client could not see
-   * `.data` at all.
-   *
-   * Declaring the envelope here fixes it for every consumer at once, which is
-   * the right place: the server is what knows the shape. The cast is the narrow
-   * part — `paginate` really does emit exactly this.
-   */
   @Get('/')
-  async list(ctx: Ctx): Promise<PaginatedResponse<TaskResponse>> {
-    return (await ctx.paginate(
-      (parsed) => this.listTasks.execute(parsed),
-      TASK_QUERY_CONFIG,
-    )) as unknown as PaginatedResponse<TaskResponse>
+  async list(ctx: Ctx) {
+    // `paginate` from shared/, not `ctx.paginate`: the framework's version is
+    // typed `Promise<RuntimeResponse>` and erased the payload, which is why
+    // this used to carry an explicit return type and a cast to put it back.
+    return paginate(ctx, (parsed) => this.listTasks.execute(parsed), TASK_QUERY_CONFIG)
   }
 
   // BEFORE '/:id', or the param route matches first and 'grouped' is read as a

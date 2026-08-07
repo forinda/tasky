@@ -1,18 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router'
 import { authQueries } from '@/features/auth/queries'
-
-export function Landing() {
-  return (
-    <main className="min-h-dvh bg-background text-foreground p-8">
-      <h1 className="text-display">Adero</h1>
-      <p className="text-muted-foreground mt-2">Landing page arrives in Story 9.</p>
-      <Link to="/app" className="text-brand underline mt-4 inline-block">
-        Go to the board
-      </Link>
-    </main>
-  )
-}
 
 export function Login() {
   return <main className="p-8">Login — Story 10.</main>

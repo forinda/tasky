@@ -1,10 +1,17 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { ConfigService } from '@forinda/kickjs'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { resolve } from 'node:path'
 import { Database } from '@/db/database'
-import { users } from '@/db/schema'
-import { deleteTask, insertTask, patchTask, selectById, selectPaginated } from '../tasks.queries'
+import { categories, users } from '@/db/schema'
+import {
+  deleteTask,
+  findCategoryIdsByTask,
+  insertTask,
+  patchTask,
+  selectById,
+  selectPaginated,
+} from '../tasks.queries'
 
 const MIGRATIONS = resolve(import.meta.dirname, '../../../db/migrations')
 const EMPTY_QUERY = {
@@ -184,5 +191,69 @@ describe('tasks queries', () => {
 
     expect(page.data).toHaveLength(2)
     expect(page.total).toBe(5)
+  })
+})
+
+describe('findCategoryIdsByTask', () => {
+  function withCategories() {
+    const db = fresh()
+    db.insert(categories)
+      .values([
+        { id: 'cat-a1', ownerId: 'owner-a', name: 'Work' },
+        { id: 'cat-a2', ownerId: 'owner-a', name: 'Home' },
+        { id: 'cat-b1', ownerId: 'owner-b', name: 'Theirs' },
+      ])
+      .run()
+    return db
+  }
+
+  it('groups a whole page of links in ONE query', () => {
+    const db = withCategories()
+    const one = insertTask(db, 'owner-a', { title: 'one' }, ['cat-a1', 'cat-a2'])
+    const two = insertTask(db, 'owner-a', { title: 'two' }, ['cat-a2'])
+    const three = insertTask(db, 'owner-a', { title: 'three' }, [])
+
+    const select = vi.spyOn(db, 'select')
+    const links = findCategoryIdsByTask(db, 'owner-a', [one.id, two.id, three.id])
+    // Read BEFORE restoring: `mockRestore` resets the call history as well as
+    // the implementation, so asserting after it always sees zero and passes.
+    const statements = select.mock.calls.length
+    select.mockRestore()
+
+    // The code this replaced issued one statement per row. Three rows, one
+    // statement, regardless of how many rows there are.
+    expect(statements).toBe(1)
+    expect(links.get(one.id)?.sort()).toEqual(['cat-a1', 'cat-a2'])
+    expect(links.get(two.id)).toEqual(['cat-a2'])
+    // Present with an empty list, not absent: a caller must never have to tell
+    // "this task has no categories" apart from "this task is missing".
+    expect(links.get(three.id)).toEqual([])
+  })
+
+  it('returns nothing for another owner’s task, however that id got into the batch', () => {
+    const db = withCategories()
+    const theirs = insertTask(db, 'owner-b', { title: 'Theirs' }, ['cat-b1'])
+
+    // `task_categories` has no owner column, so a batch keyed on task ids alone
+    // hands the caller whatever those ids link to — including someone else's
+    // categories. THIS is the assertion that fails the moment the owner
+    // predicate is dropped from the batched query.
+    expect(findCategoryIdsByTask(db, 'owner-a', [theirs.id]).get(theirs.id)).toEqual([])
+    // And it is a scope, not a blanket refusal: the real owner still gets them.
+    expect(findCategoryIdsByTask(db, 'owner-b', [theirs.id]).get(theirs.id)).toEqual(['cat-b1'])
+  })
+
+  it('issues no query at all for an empty page', () => {
+    const db = withCategories()
+
+    const select = vi.spyOn(db, 'select')
+    const links = findCategoryIdsByTask(db, 'owner-a', [])
+    const statements = select.mock.calls.length
+    select.mockRestore()
+
+    expect(links.size).toBe(0)
+    // `inArray(column, [])` is not a no-op in SQL — skipping the round trip
+    // entirely is cheaper and dodges the empty-list edge case outright.
+    expect(statements).toBe(0)
   })
 })

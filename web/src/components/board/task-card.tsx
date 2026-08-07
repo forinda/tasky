@@ -1,4 +1,5 @@
-import { useDraggable } from '@dnd-kit/core'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { TaskPriority } from '@/db/schema'
 import { Pill } from '@/components/pill'
 import { cn } from '@/lib/utils'
@@ -62,12 +63,25 @@ export function TaskCard({
   // The overlay copy is a portal-rendered picture of the card. Registering it as
   // a draggable too would mean two draggables share one id.
   const inert = isOverlay || dragDisabled
-  const draggable = useDraggable({ id: task.id, disabled: inert })
-  const { attributes, listeners, setNodeRef, isDragging } = draggable
+  // `useSortable`, not `useDraggable`: the card now has a position WITHIN its
+  // column, not just a column. Sortable is what supplies the neighbour order
+  // the drop handler needs to work out which task the card landed below.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+    disabled: inert,
+    data: { status: task.status },
+  })
 
   return (
     <button
       ref={inert ? undefined : setNodeRef}
+      style={
+        inert
+          ? undefined
+          : // The live transform, so the cards below a lifted one slide out of
+            // the way instead of the board jumping when the drop lands.
+            { transform: CSS.Transform.toString(transform), transition }
+      }
       type="button"
       onClick={() => onOpen(task.id)}
       // `attributes` carries role, tabIndex, and the aria-describedby that

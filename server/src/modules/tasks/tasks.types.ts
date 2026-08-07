@@ -41,9 +41,32 @@ export interface GroupedColumn {
 }
 
 /**
+ * The board response. It is an OBJECT rather than the bare `GroupedColumn[]`
+ * it used to be, for one reason: `truncated`.
+ *
+ * The cap below is a server decision, and a bare array forced every client to
+ * re-derive "am I looking at the whole board?" by summing the columns and
+ * comparing against its own copy of that number. Copies drift, and this one
+ * drifts SILENTLY — the day the cap moves, the client keeps reporting
+ * truncation against the old figure and nothing fails. The server is the only
+ * party that knows, so the server says so.
+ */
+export interface GroupedBoard {
+  columns: GroupedColumn[]
+  /**
+   * Rows were left behind. The order is oldest-first, so what is missing is
+   * the NEWEST work — the half a user is most likely to notice the absence of.
+   */
+  truncated: boolean
+}
+
+/**
  * The board is not paginated — a column with half its cards is a lie about the
  * work — but it is not unbounded either. 500 JOINED ROWS, not 500 tasks: a task
  * in three categories spends three of them.
+ *
+ * Deliberately NOT exported to any client: `truncated` on the response above is
+ * what a client reads, so this number can change without a client following it.
  */
 export const GROUPED_CAP = 500
 

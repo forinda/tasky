@@ -10,14 +10,19 @@ import { STATUSES } from '@/components/pill'
  * eleven of them announce nothing new. A keyboard user would reasonably
  * conclude the feature is broken.
  *
- * Up and down are deliberately not handled. There is no ordering column in the
- * schema, so there is no within-column position to move to — offering the
- * gesture would imply a result that cannot be saved.
+ * Up and down move within the column. They were previously unhandled because
+ * there was nowhere to persist an order; `tasks.position` now exists, so the
+ * gesture has a result that survives a reload. dnd-kit's default 25px nudge is
+ * right for this axis — cards are ~70px tall, so a press or two crosses one —
+ * and its sortable collision detection does the rest, so up/down fall through
+ * to the default getter rather than being computed here.
  */
 export const boardKeyboardCoordinates: KeyboardCoordinateGetter = (
   event,
   { context: { droppableContainers, droppableRects, collisionRect } },
 ) => {
+  // Only the horizontal axis is special-cased: one press must cross a whole
+  // column, which the default 25px nudge would take a dozen presses to do.
   if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return undefined
   if (!collisionRect) return undefined
 

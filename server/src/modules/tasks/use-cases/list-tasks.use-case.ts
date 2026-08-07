@@ -1,7 +1,7 @@
 import { Autowired, Service, type ParsedQuery } from '@forinda/kickjs'
 import { Database } from '@/db/database'
 import { currentOwnerId } from '@/shared/context'
-import { findCategoryIds, selectPaginated } from '../tasks.queries'
+import { findCategoryIdsByTask, selectPaginated } from '../tasks.queries'
 import { assertKnownFilterValues, toTaskResponse, type TaskResponse } from '../tasks.types'
 
 @Service()
@@ -15,10 +15,18 @@ export class ListTasksUseCase {
     const ownerId = currentOwnerId()
     const { data, total } = selectPaginated(this.database.db, ownerId, parsed)
 
-    // ponytail: one link query per row (N+1), bounded by the page limit.
-    // Story 6's relational `db.query` fetch replaces it if it ever shows up.
+    // ONE query for the whole page's links, not one per row. Owner-scoped
+    // inside the helper, so the batch cannot widen what the page already
+    // narrowed. `?? []` is unreachable — every requested id is seeded — but
+    // the compiler wants it and an empty column beats a crash.
+    const links = findCategoryIdsByTask(
+      this.database.db,
+      ownerId,
+      data.map((task) => task.id),
+    )
+
     return {
-      data: data.map((task) => toTaskResponse(task, findCategoryIds(this.database.db, task.id))),
+      data: data.map((task) => toTaskResponse(task, links.get(task.id) ?? [])),
       total,
     }
   }

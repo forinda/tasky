@@ -264,6 +264,45 @@ export function findCategoryIds(db: Db, taskId: string): string[] {
     .map((row) => row.id)
 }
 
+/**
+ * The links for a WHOLE PAGE of tasks in one statement, keyed by task id.
+ * Every requested id gets an entry — a task with no links maps to `[]`, so a
+ * caller never has to tell "no links" apart from "not in the result".
+ *
+ * This is THE fix for the N+1 that `/tasks` and `/categories/:id/tasks` both
+ * used to issue (one `findCategoryIds` per row). One helper, called by both:
+ * two copies is how the two endpoints stop agreeing about what a link is.
+ *
+ * The join to `tasks` exists ONLY to carry `eq(tasks.ownerId, ownerId)`, and
+ * that predicate is the BASE of the and(...) exactly as it is everywhere else.
+ * `task_categories` has no owner column of its own, so a batch keyed on ids
+ * alone would happily return another user's category ids for any id that leaks
+ * into the list — today the ids come from an owner-scoped page and cannot, but
+ * "the caller already checked" is the assumption every cross-tenant leak is
+ * built on. Scoped here, it holds no matter who calls.
+ */
+export function findCategoryIdsByTask(
+  db: Db,
+  ownerId: string,
+  taskIds: string[],
+): Map<string, string[]> {
+  const byTask = new Map(taskIds.map((id) => [id, [] as string[]]))
+  if (taskIds.length === 0) return byTask
+
+  const rows = db
+    .select({ taskId: taskCategories.taskId, categoryId: taskCategories.categoryId })
+    .from(taskCategories)
+    .innerJoin(tasks, eq(tasks.id, taskCategories.taskId))
+    .where(and(eq(tasks.ownerId, ownerId), inArray(taskCategories.taskId, taskIds)))
+    .all()
+
+  // `?.` and not `!`: `inArray` cannot return a task id nobody asked for, and
+  // if it ever did, dropping it beats crashing the page.
+  for (const { taskId, categoryId } of rows) byTask.get(taskId)?.push(categoryId)
+
+  return byTask
+}
+
 /** Links for a task that has none yet. No delete, because there is nothing to clear. */
 export function insertCategoryLinks(tx: Tx, taskId: string, categoryIds: string[]): void {
   if (categoryIds.length === 0) return
@@ -403,6 +442,13 @@ export function selectById(db: Db, id: string, ownerId: string): Task | null {
  *                a user independently of any task, so the join to `tasks`
  *                does not scope it.
  *
+ *   truncated  — whether rows were left behind. LIMIT cap + 1 and throw the
+ *                extra away: `rows.length === cap` alone cannot tell a board
+ *                that ends exactly on the cap from one that was cut, and
+ *                answering "maybe" to "am I looking at all of it" is the same
+ *                wrong-but-plausible board this module keeps closing. One
+ *                surplus row buys an exact answer.
+ *
  * `cap` bounds JOINED ROWS, not distinct tasks: a task in three categories
  * consumes three of the cap. That is the honest reading of a LIMIT on this
  * query, and the alternative (cap distinct tasks) needs a subquery to stay
@@ -412,14 +458,18 @@ export function selectGrouped(
   db: Db,
   ownerId: string,
   cap: number,
-): { rows: { task: Task; categoryId: string | null }[]; categories: Category[] } {
+): {
+  rows: { task: Task; categoryId: string | null }[]
+  categories: Category[]
+  truncated: boolean
+} {
   const rows = db
     .select({ task: tasks, categoryId: taskCategories.categoryId })
     .from(tasks)
     .leftJoin(taskCategories, eq(taskCategories.taskId, tasks.id))
     .where(eq(tasks.ownerId, ownerId))
     .orderBy(asc(tasks.createdAt), asc(tasks.id))
-    .limit(cap)
+    .limit(cap + 1)
     .all()
 
   const ownedCategories = db
@@ -429,7 +479,11 @@ export function selectGrouped(
     .orderBy(asc(categories.name))
     .all()
 
-  return { rows, categories: ownedCategories }
+  return {
+    rows: rows.slice(0, cap),
+    categories: ownedCategories,
+    truncated: rows.length > cap,
+  }
 }
 
 /**

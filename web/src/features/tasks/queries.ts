@@ -36,17 +36,15 @@ export interface GroupedBoard {
    * The server capped the query and there are cards missing. It orders oldest
    * first, so what is missing is the NEWEST work — the half of the board a user
    * is most likely to notice the absence of.
+   *
+   * Taken verbatim from the response. This used to be derived here, by summing
+   * the columns and comparing against a copy of the server's cap kept in this
+   * file — a number that drifts silently, because nothing fails on the day the
+   * server changes it. The cap is the server's business and it now says so
+   * itself, so this side no longer knows the number at all.
    */
   truncated: boolean
 }
-
-/**
- * Mirrored from GROUPED_CAP in server/src/modules/tasks/tasks.service.ts, and
- * it cannot be imported: `@/db/schema` and the rest of server/ resolve for TYPES
- * only in this package, so a runtime import type-checks and then fails the
- * build. If the server's cap changes, this number is the one that has to follow.
- */
-const GROUPED_CAP = 500
 
 /** The server's filter semantics, re-implemented for a response it will not
  *  filter. `q` is a substring match over the searchable fields — see
@@ -102,21 +100,18 @@ export const taskQueries = {
     queryOptions({
       queryKey: taskKeys.grouped(filters),
       queryFn: async (): Promise<GroupedBoard> => {
-        const columns: GroupedColumn[] = await api.get('/tasks/grouped')
-
-        // Every card in every column is exactly one joined row: a task in three
-        // categories appears in three columns and spent three of them, and an
-        // uncategorized task is the one row its LEFT JOIN produced. So this sum
-        // IS the row count the server capped — count it before filtering, or a
-        // filter would hide the truncation instead of the tasks.
-        const rows = columns.reduce((total, column) => total + column.tasks.length, 0)
+        const { columns, truncated } = await api.get('/tasks/grouped')
 
         return {
           columns: columns.map((column) => ({
             category: column.category,
             tasks: column.tasks.filter((task) => matchesFilters(task, filters)),
           })),
-          truncated: rows >= GROUPED_CAP,
+          // Passed through untouched, and deliberately NOT recomputed after the
+          // filter: the cards a filter removes were still fetched, so hiding the
+          // warning along with them would tell a user the board is complete
+          // exactly when it is not.
+          truncated,
         }
       },
     }),

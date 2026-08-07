@@ -71,6 +71,15 @@ interface MoveInput {
   status: TaskStatus
   /** Where it came from, so a rollback knows where to put it back. */
   from: TaskStatus
+  /**
+   * The task this one lands directly BELOW; `null` is the top of the column.
+   *
+   * An id, never an index or a position float. An index would be read against
+   * a list the server may already have changed, and a float would make the
+   * client race anyone else's move — with an id the server picks the midpoint
+   * itself, and rebalances when there is no room left between neighbours.
+   */
+  afterId: string | null
   filters: BoardFilters
 }
 
@@ -91,10 +100,14 @@ export function useMoveTask() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, status }: MoveInput) =>
-      api.put('/tasks/:id', { params: { id }, body: { status } }),
+    mutationFn: ({ id, status, afterId }: MoveInput) =>
+      // The position endpoint, not PUT /tasks/:id. PUT moves a task to another
+      // column but always lands it at the top; this one places it exactly where
+      // it was dropped, and is a single row update because positions are
+      // fractional.
+      api.patch('/tasks/:id/position', { params: { id }, body: { status, afterId } }),
 
-    onMutate: async ({ id, status, from, filters }): Promise<MoveContext> => {
+    onMutate: async ({ id, status, from, afterId, filters }): Promise<MoveContext> => {
       // Cancel first. A refetch that started before this mutation can land
       // after it and overwrite the optimistic move with pre-move data — the
       // card would visibly snap back for no reason a user could explain.
@@ -117,11 +130,17 @@ export function useMoveTask() {
           ...source,
           data: source.data.filter((t) => t.id !== id),
         })
-        queryClient.setQueryData(toKey, (current: typeof source | undefined) =>
-          current
-            ? { ...current, data: [{ ...moved, status }, ...current.data] }
-            : current,
-        )
+        queryClient.setQueryData(toKey, (current: typeof source | undefined) => {
+          if (!current) return current
+          // Insert where it was actually dropped, not at the top. Prepending
+          // would show the card in one place for as long as the request takes
+          // and then jump it to another — which reads as the drop having gone
+          // wrong even though it succeeded.
+          const rest = current.data.filter((t) => t.id !== id)
+          const anchor = afterId === null ? -1 : rest.findIndex((t) => t.id === afterId)
+          const at = anchor + 1
+          return { ...current, data: [...rest.slice(0, at), { ...moved, status }, ...rest.slice(at)] }
+        })
       }
 
       return { previous }

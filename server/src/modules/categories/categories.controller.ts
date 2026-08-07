@@ -7,8 +7,8 @@ import {
   Put,
   reply,
   type Ctx,
-  type PaginatedResponse,
 } from '@forinda/kickjs'
+import { paginate } from '@/shared/pagination'
 import { ApiBearerAuth, ApiTags } from '@forinda/kickjs-swagger'
 import { TASK_QUERY_CONFIG } from '@/modules/tasks/tasks.constants'
 import type { TaskResponse } from '@/modules/tasks/tasks.types'
@@ -51,14 +51,12 @@ export class CategoriesController {
   @Autowired() private readonly deleteCategory!: DeleteCategoryUseCase
 
   @Get('/')
-  // Annotated for the same reason as TasksController.list: `ctx.paginate` is
-  // typed `Promise<RuntimeResponse>`, which erases the payload and leaves the
-  // client unable to see `.data`.
-  async list(ctx: Ctx): Promise<PaginatedResponse<CategoryResponse>> {
-    return (await ctx.paginate(
+  async list(ctx: Ctx) {
+    return paginate(
+      ctx,
       (parsed) => this.listCategories.execute(parsed),
       QUERY_CONFIG,
-    )) as unknown as PaginatedResponse<CategoryResponse>
+    )
   }
 
   /**
@@ -71,11 +69,12 @@ export class CategoriesController {
    * same 422 `/tasks` gives, which it did not before.
    */
   @Get('/:id/tasks')
-  async tasks(ctx: Ctx): Promise<PaginatedResponse<TaskResponse>> {
-    return (await ctx.paginate(
+  async tasks(ctx: Ctx) {
+    return paginate(
+      ctx,
       (parsed) => this.listCategoryTasks.execute(ctx.params.id, parsed),
       TASK_QUERY_CONFIG,
-    )) as unknown as PaginatedResponse<TaskResponse>
+    )
   }
 
   @Post('/', { body: createCategorySchema, name: 'CreateCategory' })

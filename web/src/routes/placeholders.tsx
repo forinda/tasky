@@ -4,9 +4,9 @@ import { authQueries } from '@/features/auth/queries'
 
 export function Landing() {
   return (
-    <main className="min-h-dvh bg-canvas text-ink p-8">
+    <main className="min-h-dvh bg-background text-foreground p-8">
       <h1 className="text-display">Adero</h1>
-      <p className="text-muted mt-2">Landing page arrives in Story 9.</p>
+      <p className="text-muted-foreground mt-2">Landing page arrives in Story 9.</p>
       <Link to="/app" className="text-brand underline mt-4 inline-block">
         Go to the board
       </Link>
@@ -31,12 +31,12 @@ export function Board() {
   const { data, error, isPending } = useQuery(authQueries.me())
 
   if (isPending) return <main className="p-8">Loading…</main>
-  if (error) return <main className="p-8 text-muted">Not signed in.</main>
+  if (error) return <main className="p-8 text-muted-foreground">Not signed in.</main>
 
   return (
     <main className="p-8">
-      <h1 className="text-2xl font-bold text-ink">Board</h1>
-      <p className="text-muted">Signed in as {data.email}</p>
+      <h1 className="text-2xl font-bold text-foreground">Board</h1>
+      <p className="text-muted-foreground">Signed in as {data.email}</p>
     </main>
   )
 }

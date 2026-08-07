@@ -15,16 +15,35 @@ type PillProps =
  * than at every call site — otherwise `in_progress` leaks into the UI the one
  * time someone forgets.
  */
-const LABELS = {
-  priority: { low: 'Low', medium: 'Medium', high: 'High' },
-  status: { todo: 'To do', in_progress: 'In progress', done: 'Done' },
-} as const
+export const PRIORITY_LABELS: Record<TaskPriority, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+}
+
+export const STATUS_LABELS: Record<TaskStatus, string> = {
+  todo: 'To do',
+  in_progress: 'In progress',
+  done: 'Done',
+}
+
+/**
+ * `Record<TaskPriority, …>` rather than a bare object: adding a status on the
+ * server is then a compile error here, not a pill that silently renders
+ * `undefined`. Callers that need to list every value read these keys instead of
+ * importing the server's runtime enums — the web bundle stays free of server
+ * code, and the exhaustiveness is still enforced.
+ */
+const LABELS = { priority: PRIORITY_LABELS, status: STATUS_LABELS }
 
 /**
  * Colour is carried by a dot rather than a filled background: the board shows
  * dozens of these at once, and filled chips at that density read as confetti.
  */
-const DOT = {
+const DOT: {
+  priority: Record<TaskPriority, string>
+  status: Record<TaskStatus, string>
+} = {
   priority: {
     low: 'bg-priority-low',
     medium: 'bg-priority-medium',
@@ -35,7 +54,7 @@ const DOT = {
     in_progress: 'bg-status-progress',
     done: 'bg-status-done',
   },
-} as const
+}
 
 /**
  * Priority and status, the most-repeated atom in the product — it appears on
@@ -47,13 +66,17 @@ const DOT = {
  * `in_progress` distinguishable from the violet brand at 12px.
  */
 export function Pill({ kind, value, className }: PillProps) {
-  const label = LABELS[kind][value as keyof (typeof LABELS)[typeof kind]]
-  const dot = DOT[kind][value as keyof (typeof DOT)[typeof kind]]
+  // Narrowed on the discriminant rather than indexed with a cast: a cast here
+  // would let a wrong key through as `undefined` at runtime.
+  const [label, dot] =
+    kind === 'priority'
+      ? [LABELS.priority[value], DOT.priority[value]]
+      : [LABELS.status[value], DOT.status[value]]
 
   return (
     <span
       className={cn(
-        'text-meta inline-flex items-center gap-1.5 rounded-full border border-hairline px-2 py-0.5 text-ink',
+        'text-meta inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-foreground',
         className,
       )}
     >

@@ -42,15 +42,15 @@ export function EmptyState({
         'flex flex-col items-center justify-center rounded-lg text-center',
         // A hairline rather than a dashed box: dashes read as "broken" or
         // "drop here", and only one of those is true.
-        'border border-hairline bg-surface',
+        'border border-border bg-card',
         isPage ? 'gap-3 px-8 py-16' : 'gap-2 px-4 py-8',
         className,
       )}
     >
-      <p className={cn('font-display font-semibold text-ink', isPage ? 'text-2xl' : 'text-base')}>
+      <p className={cn('font-display font-semibold text-foreground', isPage ? 'text-2xl' : 'text-base')}>
         {title}
       </p>
-      <p className={cn('text-muted max-w-xs', isPage ? 'text-body' : 'text-meta')}>{guidance}</p>
+      <p className={cn('text-muted-foreground max-w-xs', isPage ? 'text-body' : 'text-meta')}>{guidance}</p>
       {action ? <div className={isPage ? 'mt-2' : 'mt-1'}>{action}</div> : null}
     </div>
   )

@@ -1,3 +1,4 @@
+import { useDroppable } from '@dnd-kit/core'
 import { PlusIcon } from 'lucide-react'
 import type { TaskStatus } from '@/db/schema'
 import { STATUS_LABELS } from '@/components/pill'
@@ -44,6 +45,11 @@ export function Column({
   onOpen,
   onClearFilters,
 }: ColumnProps) {
+  // The whole column is the drop target, empty state included. A column you
+  // cannot drop into once it is empty is a column you can never refill — which
+  // is exactly the state Done starts in.
+  const { setNodeRef, isOver } = useDroppable({ id: status })
+
   return (
     // A section per column, labelled, so the board is navigable by landmark
     // rather than as one undifferentiated pile of buttons.
@@ -66,7 +72,15 @@ export function Column({
         </Button>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div
+        ref={setNodeRef}
+        className={cn(
+          'flex min-h-24 flex-col gap-2 rounded-lg transition-colors',
+          // A ring rather than a fill: the cards keep their own surfaces, and a
+          // tinted column behind them muddies every card's contrast at once.
+          isOver && 'outline-2 outline-offset-4 outline-ring/60',
+        )}
+      >
         {isPending ? (
           // Three empty columns while loading is indistinguishable from a
           // first-run board — the "working app reads as broken" failure §14

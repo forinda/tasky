@@ -1,5 +1,7 @@
+import { useDraggable } from '@dnd-kit/core'
 import type { TaskPriority } from '@/db/schema'
 import { Pill } from '@/components/pill'
+import { cn } from '@/lib/utils'
 
 export interface BoardTask {
   id: string
@@ -26,6 +28,8 @@ interface TaskCardProps {
   task: BoardTask
   categoryNames: Map<string, string>
   onOpen: (id: string) => void
+  /** Set on the copy rendered inside the DragOverlay, which must not drag itself. */
+  isOverlay?: boolean
 }
 
 /**
@@ -38,14 +42,33 @@ interface TaskCardProps {
  * clickable div gives keyboard users two stops for one destination, and screen
  * readers a nested-interactive warning.
  */
-export function TaskCard({ task, categoryNames, onOpen }: TaskCardProps) {
+export function TaskCard({ task, categoryNames, onOpen, isOverlay = false }: TaskCardProps) {
   const names = task.categoryIds.map((id) => categoryNames.get(id)).filter(Boolean)
+
+  // The overlay copy is a portal-rendered picture of the card. Registering it as
+  // a draggable too would mean two draggables share one id.
+  const draggable = useDraggable({ id: task.id, disabled: isOverlay })
+  const { attributes, listeners, setNodeRef, isDragging } = draggable
 
   return (
     <button
+      ref={isOverlay ? undefined : setNodeRef}
       type="button"
       onClick={() => onOpen(task.id)}
-      className="w-full rounded-md border border-border bg-card p-3 text-left shadow-xs transition-colors hover:border-ring/40"
+      // `attributes` carries role, tabIndex, and the aria-describedby that
+      // points at dnd-kit's instructions — without it the keyboard sensor is
+      // reachable but undocumented.
+      {...(isOverlay ? {} : attributes)}
+      {...(isOverlay ? {} : listeners)}
+      className={cn(
+        'w-full rounded-md border border-border bg-card p-3 text-left shadow-xs transition-colors hover:border-ring/40',
+        // The original stays in place but recedes, so the column keeps its shape
+        // while the overlay moves. Hiding it entirely makes the board reflow
+        // under the pointer, which is what makes some drags feel like they
+        // "jump".
+        isDragging && 'opacity-40',
+        isOverlay && 'cursor-grabbing shadow-lg',
+      )}
     >
       <h4 className="type-body font-medium text-card-foreground">{task.title}</h4>
 

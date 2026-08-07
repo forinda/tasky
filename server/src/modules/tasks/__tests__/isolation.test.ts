@@ -108,6 +108,61 @@ describe('cross-user task isolation', () => {
     expect(stillHers.body.data[0].title).toBe('Alice Secret')
   })
 
+  it('Bob cannot reorder Alice’s task, and it does not move', async () => {
+    const { expressApp, alice, bob } = await twoUsers()
+    const first = await createTask(expressApp, alice, { title: 'Alice Secret' })
+    const second = await createTask(expressApp, alice, { title: 'Alice Second' })
+
+    const attempt = await request(expressApp)
+      .patch(`/api/v1/tasks/${second.body.id}/position`)
+      .set(auth(bob))
+      .send({ afterId: first.body.id })
+
+    const missing = await request(expressApp)
+      .patch('/api/v1/tasks/definitely-not-a-real-id/position')
+      .set(auth(bob))
+      .send({ afterId: null })
+
+    // Byte-identical to a genuinely missing id, like every other task route.
+    expect(attempt.status).toBe(404)
+    expect(attempt.body).toEqual(missing.body)
+
+    // And her column is exactly as she left it.
+    const hers = await request(expressApp)
+      .get('/api/v1/tasks?filter=status:eq:todo')
+      .set(auth(alice))
+    expect(hers.body.data.map((t: { title: string }) => t.title)).toEqual([
+      'Alice Second',
+      'Alice Secret',
+    ])
+  })
+
+  it('Bob cannot use Alice’s task as the anchor for his own move', async () => {
+    const { expressApp, alice, bob } = await twoUsers()
+    const hers = await createTask(expressApp, alice, { title: 'Alice Secret' })
+    const his = await createTask(expressApp, bob, { title: 'Bob Task' })
+
+    const withHers = await request(expressApp)
+      .patch(`/api/v1/tasks/${his.body.id}/position`)
+      .set(auth(bob))
+      .send({ afterId: hers.body.id })
+
+    const withGarbage = await request(expressApp)
+      .patch(`/api/v1/tasks/${his.body.id}/position`)
+      .set(auth(bob))
+      .send({ afterId: 'definitely-not-a-real-id' })
+
+    // 422 either way, same body — an id he does not own has to look exactly
+    // like an id that never existed, or the endpoint enumerates hers.
+    expect(withHers.status).toBe(422)
+    expect(withHers.body).toEqual(withGarbage.body)
+    expect(JSON.stringify(withHers.body)).not.toContain('Alice Secret')
+
+    // The rejected move wrote nothing — his task sits where it was.
+    const stillHis = await request(expressApp).get(`/api/v1/tasks/${his.body.id}`).set(auth(bob))
+    expect(stillHis.body.position).toBe(his.body.position)
+  })
+
   it('Bob cannot attach Alice’s category to his own task', async () => {
     const { expressApp, alice, bob } = await twoUsers()
     const herCategory = await request(expressApp)

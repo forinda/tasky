@@ -2,6 +2,7 @@ import { Autowired, HttpException, Service, type ParsedQuery } from '@forinda/ki
 import { TASK_PRIORITIES, TASK_STATUSES, type Task } from '@/db/schema'
 import { toCategoryResponse, type CategoryResponse } from '@/modules/categories/categories.service'
 import type { CreateTaskDTO } from './dtos/create-task.dto'
+import type { MoveTaskDTO } from './dtos/move-task.dto'
 import type { UpdateTaskDTO } from './dtos/update-task.dto'
 import { TasksRepository } from './tasks.repository'
 
@@ -12,6 +13,11 @@ export interface TaskResponse {
   description: string | null
   priority: string
   status: string
+  // Exposed so a client holding a cached column can keep it in the server's
+  // order without a refetch. The VALUE is meaningless on its own — only the
+  // comparison within one status is — and a client never sends it back: moves
+  // name a neighbour id, not a float.
+  position: number
   categoryIds: string[]
   createdAt: Date
   updatedAt: Date
@@ -25,6 +31,7 @@ export function toTaskResponse(task: Task, categoryIds: string[]): TaskResponse 
     description: task.description,
     priority: task.priority,
     status: task.status,
+    position: task.position,
     categoryIds,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
@@ -198,6 +205,32 @@ export class TasksService {
     if (!task) throw HttpException.notFound('Task not found')
 
     return toTaskResponse(task, categoryIds ?? this.repo.findCategoryIds(id))
+  }
+
+  /**
+   * Reorder within a column, or move to another one — the board's drag-drop.
+   * One row update; see TasksRepository.move for why the client sends a
+   * neighbour id rather than a position.
+   */
+  async move(id: string, ownerId: string, dto: MoveTaskDTO): Promise<TaskResponse> {
+    // Checked before anything is read, and on the caller's own two values, so
+    // it reveals nothing about what exists.
+    if (dto.afterId === id) {
+      throw HttpException.unprocessable('A task cannot be placed after itself')
+    }
+
+    const result = this.repo.move(id, ownerId, dto.status, dto.afterId)
+
+    // Same 404 as `get` — missing and not-yours stay indistinguishable.
+    if (result === 'not-found') throw HttpException.notFound('Task not found')
+    // Unknown, someone else's, or in a different column: one message, for the
+    // same reason unknown category ids get one. The id is NOT echoed back —
+    // unlike the category message, which names which of several were rejected,
+    // there is one anchor and the client already knows what it sent, so echoing
+    // it only makes two 422 bodies distinguishable to no one's benefit.
+    if (result === 'unknown-anchor') throw HttpException.unprocessable('Unknown task')
+
+    return toTaskResponse(result, this.repo.findCategoryIds(id))
   }
 
   async remove(id: string, ownerId: string): Promise<void> {

@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Patch,
   Post,
   Put,
   reply,
@@ -11,6 +12,7 @@ import {
 } from '@forinda/kickjs'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@forinda/kickjs-swagger'
 import { createTaskSchema } from './dtos/create-task.dto'
+import { moveTaskSchema } from './dtos/move-task.dto'
 import { updateTaskSchema } from './dtos/update-task.dto'
 import { TASK_QUERY_CONFIG } from './tasks.constants'
 import { TasksService, type TaskResponse } from './tasks.service'
@@ -71,6 +73,16 @@ export class TasksController {
   async update(ctx: Ctx) {
     const owner = ctx.require('currentUser')
     return this.tasks.update(ctx.params.id, owner.id, ctx.body)
+  }
+
+  @Patch('/:id/position', { body: moveTaskSchema, name: 'MoveTask' })
+  @ApiOperation({
+    description:
+      'Reorder a task inside its column, or move it to another one. `afterId` names the task it lands directly below; null is the top. Positions are fractional, so this is a single row update.',
+  })
+  async move(ctx: Ctx) {
+    const owner = ctx.require('currentUser')
+    return this.tasks.move(ctx.params.id, owner.id, ctx.body)
   }
 
   @Delete('/:id')

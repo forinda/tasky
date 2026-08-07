@@ -15,6 +15,13 @@
       "when": 1786093849710,
       "tag": "0001_nasty_vapor",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786106680730,
+      "tag": "0002_brainy_doorman",
+      "breakpoints": true
     }
   ]
 }

@@ -10,6 +10,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
+import { Link } from 'react-router'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import type { TaskStatus } from '@/db/schema'
 import { STATUSES } from '@/components/pill'
@@ -145,6 +146,9 @@ export function Board() {
       <header className="flex items-center justify-between border-b border-border px-5 py-4 sm:px-8">
         <Wordmark />
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/categories">Categories</Link>
+          </Button>
           <ThemeToggle />
           <Button
             variant="ghost"

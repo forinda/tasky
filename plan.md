@@ -44,7 +44,7 @@ with the auth-bearing `users` table this design needs.
 | Repo shape | pnpm workspace, `server/` + `web/` | Matches `adero-fullstack`; two deployable units, one lockfile |
 | API client | `@forinda/kickjs-client` | Types come from `kick typegen`, so routes and payloads cannot drift |
 | Scaffold placeholders | Delete all five | Dead code with a latent bug in the adapter |
-| Auth | JWT access token | Stateless, no session table, standard for an API |
+| Auth | 15-min JWT access token + rotating httpOnly refresh cookie | An XSS reaches only a short-lived token it cannot renew (revised in Story 10; was a 7-day localStorage JWT) |
 | Password hashing | `node:crypto` scrypt | Memory-hard, stdlib, zero dependencies |
 | Task visibility | Owner only | Every query scoped to the current user |
 | Categories | Per-user | Unique on `(ownerId, name)` |
@@ -164,6 +164,16 @@ taskCategories
   taskId      text → tasks.id, on delete cascade, on update cascade
   categoryId  text → categories.id, on delete cascade, on update cascade
   PRIMARY KEY (taskId, categoryId)
+
+refreshTokens                             -- added in Story 10
+  id            text, uuid, PK
+  userId        text → users.id, on delete CASCADE, on update cascade
+  familyId      text, not null            -- one per login; rotation lineage
+  tokenHash     text, not null, UNIQUE    -- sha256, never the token
+  expiresAt     integer, timestamp_ms
+  revokedAt     integer, timestamp_ms, nullable
+  replacedById  text, nullable            -- successor, for auditing a chain
+  INDEX (userId), INDEX (familyId)
 ```
 
 **Delete behaviour is deliberately split.** The two ownership keys are
@@ -172,6 +182,12 @@ must fail loudly rather than silently destroying their data. Account deletion
 therefore becomes an explicit, ordered operation whenever it is added — not a
 side effect. The two join keys stay `CASCADE`: a join row has no independent
 value, so deleting a task or a category should clean up its own links.
+
+`refreshTokens.userId` is `CASCADE` for the same reason as the join rows: a
+refresh token has no meaning without the user it authenticates. Only sha256 of
+the token is stored, so a database dump yields nothing that can be presented to
+`/auth/refresh` — plain sha256 rather than scrypt because the input is 256 bits
+of uniform randomness with no dictionary to run against it.
 
 **Every foreign key is `ON UPDATE CASCADE`.** IDs are UUIDs and are not expected
 to change, so this is a safety net rather than a workflow — but if one ever is
@@ -199,9 +215,16 @@ read throughput.
 
 ### Mechanism
 
-Signup and login return a JWT signed with HS256 via `jose`. Clients send it as
-`Authorization: Bearer <token>`. There is no refresh token and no server-side
-session — logout is a client-side token discard.
+Signup and login return a **15-minute** JWT signed with HS256 via `jose`, which
+clients send as `Authorization: Bearer <token>` and hold in memory only. They
+also set a **rotating refresh token** in an httpOnly cookie; `POST /auth/refresh`
+exchanges it for a new access token and `POST /auth/logout` revokes it.
+
+Revised in Story 10. The original text here read "There is no refresh token and
+no server-side session — logout is a client-side token discard", which paired
+with a 7-day token in `localStorage`: readable by any successful XSS, valid for
+a week, and impossible to revoke. Logout is now a server-side act. See §14 for
+the client half and for the ceilings this design still has.
 
 Passwords are hashed with `node:crypto` `scrypt` (N=16384, r=8, p=1) against a
 32-byte random salt, stored as `scrypt$<salt-hex>$<hash-hex>`. Verification uses
@@ -685,17 +708,30 @@ the minimal end of the range if cards start feeling heavy.
 
 ### Token storage
 
-The JWT lives in `localStorage` and is attached by `createClient`'s per-request
-`headers` factory — read the token, return `{ Authorization: 'Bearer …' }`, or
-return `{}` when signed out. The `fetch` override wraps the default and clears
-the token plus redirects to login on any 401. No separate interceptor layer.
+Replaced in Story 10. The original design put the JWT in `localStorage` and
+carried a "known ceiling" note saying an httpOnly refresh cookie was the stronger
+answer. That is now what ships, and §6 changed with it.
 
-> **Known ceiling — `localStorage` token.** It is readable by any successful XSS.
-> The mitigations here are that React escapes by default and the codebase uses no
-> `dangerouslySetInnerHTML`. The stronger fix is an httpOnly refresh cookie with a
-> short-lived in-memory access token, which is a different auth design than the
-> one chosen in §6. Revisit together, not piecemeal. Marked with a `ponytail:`
-> comment in the auth store.
+- **Access token** — JWT, 15 minutes, held in a module variable in the browser
+  and nowhere else. Attached by `createClient`'s per-request `headers` factory.
+- **Refresh token** — 32 random bytes, opaque rather than a JWT, in an httpOnly
+  `SameSite=Strict` cookie scoped to `/api/v1/auth`. Only its sha256 is stored.
+- **Rotation on every use, with reuse detection.** Replaying a spent token
+  revokes its whole family. Each login gets its own family.
+- **`authFetch`** retries a 401 exactly once behind a single shared refresh
+  promise, and the app performs one boot refresh before `ProtectedRoute` decides
+  anything.
+
+> **The real ceilings now.** Reuse detection cannot tell a replay from a theft,
+> so it signs the honest user out too — that is the intended blast radius, not a
+> bug to soften. A stolen cookie stays valid until it is used or expires; there
+> is no device list and no server-side session view. The 15-minute access token
+> is still readable by a successful XSS for its lifetime, and cannot be renewed
+> without the cookie script cannot read. CSRF rests on `SameSite=Strict` plus an
+> `Origin` check that requires the deployment's proxy to preserve `Host`
+> (nginx: `proxy_set_header Host $host`); a proxy that rewrites it rejects every
+> refresh, which is exactly what the Vite dev proxy did until it was configured
+> with `changeOrigin: false`.
 
 ## 15. Frontend testing
 

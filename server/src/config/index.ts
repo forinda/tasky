@@ -29,7 +29,16 @@ const envSchema = fromZod(
     // No default — a signing secret with a fallback is a signing secret that
     // ships to production. Boot must fail loudly when it is absent.
     JWT_SECRET: z.string().min(32),
-    JWT_EXPIRES_IN: z.string().default('7d'),
+    // Minutes, not days. The access token is held in memory by the browser and
+    // is the only credential an XSS can reach; a short life is most of what
+    // makes that survivable. Renewal is the refresh cookie's job.
+    //
+    // This replaces JWT_EXPIRES_IN (default '7d'). The name changed rather than
+    // the value alone: leaving the old name pointing at the new meaning would
+    // let a deployment carrying `JWT_EXPIRES_IN=7d` silently keep issuing
+    // week-long access tokens, which is exactly what this design removes.
+    ACCESS_TOKEN_TTL: z.string().default('15m'),
+    REFRESH_TOKEN_TTL: z.string().default('30d'),
   }),
 )
 

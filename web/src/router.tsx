@@ -1,15 +1,29 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import { getToken } from '@/lib/token'
-import { Board, Login, Signup } from './routes/placeholders'
+import { useSessionBoot } from '@/features/auth/use-session'
+import { Board } from './routes/placeholders'
+import { Login } from './routes/login'
+import { Signup } from './routes/signup'
 import { Landing } from './routes/landing'
 import { Gallery } from './routes/gallery'
 
 /**
- * Story 10 wires real auth; the shape is settled now so later screens slot in
- * rather than restructuring. Reads the token on every render rather than
- * caching it, so signing out takes effect on the next navigation.
+ * Waits for the boot refresh before deciding anything.
+ *
+ * The access token is held in memory, so immediately after a reload there is no
+ * token yet — not because the user is signed out, but because the exchange with
+ * the httpOnly cookie has not finished. Redirecting on that would bounce a
+ * signed-in user to `/login` on every hard refresh of `/app`, which looks
+ * exactly like a broken session.
+ *
+ * Renders nothing while waiting rather than a spinner: the refresh is one
+ * same-origin request, and a spinner that flashes for 30ms is worse than a
+ * frame of blank.
  */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { settled } = useSessionBoot()
+
+  if (!settled) return null
   return getToken() ? children : <Navigate to="/login" replace />
 }
 

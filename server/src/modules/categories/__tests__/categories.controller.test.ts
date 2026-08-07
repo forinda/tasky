@@ -21,7 +21,7 @@ async function appWithUser(email = 'a@example.com') {
   const res = await request(app.expressApp)
     .post('/api/v1/auth/signup')
     .send({ email, password: 'hunter2hunter2', name: 'A' })
-  return { expressApp: app.expressApp, token: res.body.token as string }
+  return { expressApp: app.expressApp, token: res.body.accessToken as string }
 }
 
 const auth = (token: string) => ({ Authorization: `Bearer ${token}` })

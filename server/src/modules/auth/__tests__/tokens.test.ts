@@ -11,7 +11,7 @@ function makeTokens(): Tokens {
 describe('Tokens', () => {
   it('round-trips a subject', async () => {
     const tokens = makeTokens()
-    const token = await tokens.sign('user-1')
+    const token = await tokens.signAccess('user-1')
     expect(await tokens.verify(token)).toBe('user-1')
   })
 

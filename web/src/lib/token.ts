@@ -1,33 +1,25 @@
-const STORAGE_KEY = 'tasky.token'
-
 /**
- * ponytail: the token lives in localStorage, which any successful XSS can read.
- * The mitigations here are that React escapes by default and this codebase uses
- * no `dangerouslySetInnerHTML`. The stronger design is an httpOnly refresh
- * cookie plus a short-lived in-memory access token — a different auth design
- * than plan.md §6 describes, so revisit the two together rather than piecemeal.
+ * The access token lives in memory and nowhere else.
+ *
+ * Not `localStorage`, not `sessionStorage`, not a non-httpOnly cookie — every
+ * one of those is readable by any script that runs on the page, which is the
+ * hole this design closes. The token survives a client-side navigation and is
+ * deliberately lost on reload; `refreshSession()` mints a new one from the
+ * httpOnly cookie the browser sends but script cannot read.
+ *
+ * If you are here because "the token disappears on refresh": that is the
+ * design. Persist it and the refresh cookie stops being worth having.
  */
+let accessToken: string | null = null
+
 export function getToken(): string | null {
-  try {
-    return localStorage.getItem(STORAGE_KEY)
-  } catch {
-    // Safari private mode and some embedded webviews throw on access.
-    return null
-  }
+  return accessToken
 }
 
 export function setToken(token: string): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, token)
-  } catch {
-    // Losing persistence is survivable; crashing the sign-in is not.
-  }
+  accessToken = token
 }
 
 export function clearToken(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    // Nothing useful to do — the caller is signing out either way.
-  }
+  accessToken = null
 }

@@ -2,6 +2,7 @@ import {
   Autowired,
   Controller,
   Get,
+  HttpException,
   Middleware,
   Post,
   rateLimitGuard,
@@ -11,7 +12,13 @@ import {
 } from '@forinda/kickjs'
 import { ApiBearerAuth, ApiPublic, ApiTags } from '@forinda/kickjs-swagger'
 import { CurrentUser } from '@/contributors/current-user.contributor'
-import { AuthService } from './auth.service'
+import { AuthService, type AuthResult } from './auth.service'
+import {
+  clearRefreshCookie,
+  isOriginAllowed,
+  readRefreshCookie,
+  setRefreshCookie,
+} from './cookies'
 import { signupSchema } from './dtos/signup.dto'
 import { loginSchema } from './dtos/login.dto'
 
@@ -81,6 +88,31 @@ const authLimit = () =>
       'unknown',
   })
 
+/**
+ * Splits an AuthResult: the refresh token goes into an httpOnly cookie, and
+ * only the user and the short-lived access token reach the body.
+ *
+ * The destructure is the point. Returning the result directly would ship the
+ * refresh token as JSON, where script can read it — undoing the entire design
+ * in one line that looks like a convenience.
+ */
+function respondWithSession(ctx: Ctx, result: AuthResult) {
+  setRefreshCookie(ctx.res, result.refreshToken, result.refreshExpiresAt)
+  return { user: result.user, accessToken: result.accessToken }
+}
+
+/**
+ * `/refresh` and `/logout` authenticate by cookie, so unlike every other route
+ * they are reachable by a cross-site form post. SameSite=Strict is the real
+ * defence; this is the second lock. See `isOriginAllowed`.
+ */
+function assertSameOrigin(ctx: Ctx) {
+  const origin = ctx.headers.origin
+  if (!isOriginAllowed(typeof origin === 'string' ? origin : undefined, ctx.headers.host)) {
+    throw HttpException.forbidden('Cross-origin request rejected')
+  }
+}
+
 @Controller()
 export class AuthController {
   @Autowired() private readonly auth!: AuthService
@@ -92,7 +124,7 @@ export class AuthController {
   @ApiPublic()
   @Middleware(authLimit())
   async signup(ctx: Ctx) {
-    return reply.created(await this.auth.signup(ctx.body))
+    return reply.created(respondWithSession(ctx, await this.auth.signup(ctx.body)))
   }
 
   @Post('/login', { body: loginSchema, name: 'Login' })
@@ -100,7 +132,41 @@ export class AuthController {
   @ApiPublic()
   @Middleware(authLimit())
   async login(ctx: Ctx) {
-    return this.auth.login(ctx.body)
+    return respondWithSession(ctx, await this.auth.login(ctx.body))
+  }
+
+  /**
+   * Public in the OpenAPI sense — it carries no bearer token. It is not
+   * unauthenticated: the cookie is the credential.
+   *
+   * Rate limited alongside signup and login. Without it, a stolen cookie can be
+   * rotated in a tight loop, and each rotation is a database write.
+   */
+  @Post('/refresh', { name: 'Refresh' })
+  @ApiTags('Auth')
+  @ApiPublic()
+  @Middleware(authLimit())
+  async refresh(ctx: Ctx) {
+    assertSameOrigin(ctx)
+
+    const presented = readRefreshCookie(ctx.headers.cookie)
+    if (!presented) throw HttpException.unauthorized('Invalid or expired session')
+
+    return respondWithSession(ctx, await this.auth.refresh(presented))
+  }
+
+  @Post('/logout', { name: 'Logout' })
+  @ApiTags('Auth')
+  @ApiPublic()
+  async logout(ctx: Ctx) {
+    assertSameOrigin(ctx)
+
+    // Revoke first, then clear. If clearing succeeded and revoking failed, the
+    // browser would look signed out while the token stayed valid.
+    await this.auth.logout(readRefreshCookie(ctx.headers.cookie))
+    clearRefreshCookie(ctx.res)
+
+    return reply.noContent()
   }
 
   // Applied per-method, not on the class: signup and login live on this same

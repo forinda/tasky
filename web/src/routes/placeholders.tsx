@@ -5,7 +5,7 @@ import { authQueries } from '@/features/auth/queries'
 export function Landing() {
   return (
     <main className="min-h-dvh bg-canvas text-ink p-8">
-      <h1 className="text-4xl font-bold tracking-tight">Adero</h1>
+      <h1 className="text-display">Adero</h1>
       <p className="text-muted mt-2">Landing page arrives in Story 9.</p>
       <Link to="/app" className="text-accent underline mt-4 inline-block">
         Go to the board

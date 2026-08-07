@@ -1,7 +1,23 @@
-@import "tailwindcss";
+/* Self-hosted: no external request, nothing to break under a strict CSP, and no
+   layout shift from a late webfont. */
+@import '@fontsource-variable/bricolage-grotesque';
+@import '@fontsource-variable/geist';
+@import '@fontsource/geist-mono';
+@import 'tailwindcss';
 
 @theme {
-  /* The accent sits in the violet family deliberately: priority and status need
+  /* ── Type ───────────────────────────────────────────────────────────────
+     A pairing, not one face everywhere. The board is dense and functional, so
+     the working face has to be excellent at 13–14px with real tabular figures
+     — that is Geist. Bricolage has a genuine width axis and editorial
+     personality, which would be exhausting across a whole board and is exactly
+     right for the few places the app speaks. Boldness spent in one place. */
+  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+
+  /* ── Brand ──────────────────────────────────────────────────────────────
+     The accent sits in the violet family deliberately: priority and status need
      the warm and green ranges for meaning, so a red brand accent would fight a
      red "high priority" pill. See plan.md §12. */
   --color-accent: #6d4aff;
@@ -10,16 +26,84 @@
   --color-muted: #6b6b7b;
   --color-hairline: #e6e6ef;
   --color-canvas: #fafafc;
+  --color-surface: #ffffff;
 
-  /* Semantic — priority. Never encoded in colour alone; every pill ships its
-     word too, which is both an accessibility floor and what keeps sky
-     `in_progress` distinguishable from the violet accent at small sizes. */
+  /* ── Semantic ───────────────────────────────────────────────────────────
+     Never encoded in colour alone — every pill ships its word. That is an
+     accessibility floor, and it is also what keeps sky `in_progress`
+     distinguishable from the violet accent at small sizes. */
   --color-priority-low: #64748b;
   --color-priority-medium: #f59e0b;
   --color-priority-high: #ef4444;
 
-  /* Semantic — status. */
   --color-status-todo: #94a3b8;
   --color-status-progress: #0ea5e9;
   --color-status-done: #22c55e;
+
+  /* ── Motion ─────────────────────────────────────────────────────────────
+     Written down here so Story 12's drag-and-drop does not invent its own. */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-hover: 150ms;
+  --duration-move: 200ms;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    /* Geist's default figures are proportional; the board is full of counts and
+       timestamps that must align in a column. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Defined once so every component inherits it, including shadcn's.
+     `:focus-visible`, not `:focus` — a mouse user clicking a button should not
+     see a ring; a keyboard user tabbing to it must. Nothing in this codebase
+     may set `outline: none`; override the colour if you need to, never remove
+     the ring. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility text-display {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  font-weight: 700;
+  /* The tight tracking at display size is most of what separates a considered
+     headline from a defaulted one. */
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+@utility text-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+@utility text-body {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+@utility text-meta {
+  font-size: 0.75rem;
+  line-height: 1.4;
 }

@@ -11,7 +11,7 @@ import { authRateLimitStore } from '@/modules/auth/auth.controller'
 import { AuthModule } from '@/modules/auth/auth.module'
 import { CategoriesModule } from '@/modules/categories/categories.module'
 import { TasksModule } from '../tasks.module'
-import { TasksRepository } from '../tasks.repository'
+import { findCategoryIds, insertTask, patchTask } from '../tasks.queries'
 
 beforeEach(() => {
   Container.reset()
@@ -98,9 +98,7 @@ describe('GET /tasks/grouped', () => {
     expect(titles(column(res.body, 'Work'))).toEqual(['Both'])
     expect(titles(column(res.body, 'Home'))).toEqual(['Both'])
     expect(column(res.body, 'Work').tasks[0].id).toBe(id)
-    expect([...column(res.body, 'Work').tasks[0].categoryIds].sort()).toEqual(
-      [work, home].sort(),
-    )
+    expect([...column(res.body, 'Work').tasks[0].categoryIds].sort()).toEqual([work, home].sort())
   })
 
   it('keeps an empty category as an empty column', async () => {
@@ -157,9 +155,9 @@ describe('GET /tasks/grouped', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Part B: the update transaction, driven at the repository level. The service
+// Part B: the update transaction, driven at the query level. The service
 // rejects an unknown category id with a 422 long before the write, so the only
-// way to make the LINK step fail is to call the repository directly.
+// way to make the LINK step fail is to call the query directly.
 // ---------------------------------------------------------------------------
 
 const MIGRATIONS = resolve(import.meta.dirname, '../../../db/migrations')
@@ -171,7 +169,7 @@ afterEach(() => {
   open = undefined
 })
 
-function freshRepo() {
+function freshDb() {
   const database = new Database(new ConfigService())
   open = database
   migrate(database.db, { migrationsFolder: MIGRATIONS })
@@ -182,26 +180,23 @@ function freshRepo() {
     .run()
   database.db.insert(categories).values({ id: 'cat-a1', ownerId: 'owner-a', name: 'Work' }).run()
 
-  return { repo: new TasksRepository(database), database }
+  return database.db
 }
 
-describe('updateWithCategories', () => {
-  it('rolls back the column patch when the link step fails', async () => {
-    const { repo, database } = freshRepo()
-    const task = repo.createWithCategories('owner-a', { title: 'Original' }, ['cat-a1'])
+describe('patchTask with categories', () => {
+  it('rolls back the column patch when the link step fails', () => {
+    const db = freshDb()
+    const task = insertTask(db, 'owner-a', { title: 'Original' }, ['cat-a1'])
 
     // 'ghost-category' has no row, so the join insert violates the foreign key
     // AFTER the UPDATE has run. Two statements outside a transaction would
     // leave the title patched and the links half-written.
     expect(() =>
-      repo.updateWithCategories(task.id, 'owner-a', { title: 'Patched' }, [
-        'cat-a1',
-        'ghost-category',
-      ]),
+      patchTask(db, task.id, 'owner-a', { title: 'Patched' }, ['cat-a1', 'ghost-category']),
     ).toThrow()
 
-    const [row] = database.db.select().from(tasks).all()
+    const [row] = db.select().from(tasks).all()
     expect(row.title).toBe('Original')
-    expect(repo.findCategoryIds(task.id)).toEqual(['cat-a1'])
+    expect(findCategoryIds(db, task.id)).toEqual(['cat-a1'])
   })
 })

@@ -63,7 +63,7 @@ export class CategoriesController {
 
   /**
    * The route lives here because the URL is category-shaped; the DATA is the
-   * tasks module's, reached through TasksRepository in the use case. Reusing
+   * tasks module's, reached through tasks.queries in the use case. Reusing
    * TASK_QUERY_CONFIG rather than a second list means filter/sort/search names
    * are the same ones `/tasks` accepts — a client should not have to learn two
    * vocabularies for the same rows. Reusing the vocabulary also means reusing

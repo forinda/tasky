@@ -25,8 +25,8 @@ import {
  * explicit `eq(tasks.ownerId, ownerId)` written here, once.
  *
  * These take the drizzle handle as an argument instead of holding one, which is
- * what lets the same function serve a use case, a transaction callback, and the
- * retained `TasksRepository` shim without three copies of the SQL.
+ * what lets the same function serve a use case, a transaction callback and a
+ * test without three copies of the SQL.
  */
 
 type Db = Database['db']

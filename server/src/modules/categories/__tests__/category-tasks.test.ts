@@ -156,7 +156,7 @@ describe('GET /categories/:id/tasks', () => {
 /**
  * This route reuses TASK_QUERY_CONFIG, so it accepts the same filters `/tasks`
  * does — and until now it did not apply the same validation. An unknown enum
- * value degrades to `1 = 0` in TasksRepository.scope, so the client got an
+ * value degrades to `1 = 0` in tasks.queries' scope, so the client got an
  * empty page that is indistinguishable from "this category is empty" while
  * `/tasks` answered 422 for the identical query.
  */

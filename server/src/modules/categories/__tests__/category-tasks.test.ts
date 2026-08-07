@@ -152,3 +152,80 @@ describe('GET /categories/:id/tasks', () => {
     expect(res.status).toBe(401)
   })
 })
+
+/**
+ * This route reuses TASK_QUERY_CONFIG, so it accepts the same filters `/tasks`
+ * does — and until now it did not apply the same validation. An unknown enum
+ * value degrades to `1 = 0` in TasksRepository.scope, so the client got an
+ * empty page that is indistinguishable from "this category is empty" while
+ * `/tasks` answered 422 for the identical query.
+ */
+describe('GET /categories/:id/tasks filter validation', () => {
+  it('422s on an unknown status value instead of returning an empty page', async () => {
+    const { expressApp, alice } = await twoUsers()
+    const work = await makeCategory(expressApp, alice, 'Work')
+    await makeTask(expressApp, alice, 'Real task', [work])
+
+    const res = await request(expressApp)
+      .get(`/api/v1/categories/${work}/tasks?filter=status:eq:bogus`)
+      .set(auth(alice))
+
+    // The bug: this was 200 with `data: []`.
+    expect(res.status).toBe(422)
+  })
+
+  it('422s on an unknown priority value', async () => {
+    const { expressApp, alice } = await twoUsers()
+    const work = await makeCategory(expressApp, alice, 'Work')
+
+    const res = await request(expressApp)
+      .get(`/api/v1/categories/${work}/tasks?filter=priority:eq:urgent`)
+      .set(auth(alice))
+
+    expect(res.status).toBe(422)
+  })
+
+  it('422s on an unsupported operator, which would otherwise invert the answer', async () => {
+    const { expressApp, alice } = await twoUsers()
+    const work = await makeCategory(expressApp, alice, 'Work')
+    await makeTask(expressApp, alice, 'Real task', [work])
+
+    // The repository ignores the operator and treats every filter as `eq`, so
+    // `neq` returned the exact inverse of what was asked.
+    const res = await request(expressApp)
+      .get(`/api/v1/categories/${work}/tasks?filter=status:neq:done`)
+      .set(auth(alice))
+
+    expect(res.status).toBe(422)
+  })
+
+  it('still accepts a valid enum filter', async () => {
+    const { expressApp, alice } = await twoUsers()
+    const work = await makeCategory(expressApp, alice, 'Work')
+    await makeTask(expressApp, alice, 'Real task', [work])
+
+    const res = await request(expressApp)
+      .get(`/api/v1/categories/${work}/tasks?filter=status:eq:todo`)
+      .set(auth(alice))
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.map((t: { title: string }) => t.title)).toEqual(['Real task'])
+  })
+
+  it('keeps the 404 non-disclosure rule when the filter is also bad', async () => {
+    const { expressApp, alice, bob } = await twoUsers()
+    const hers = await makeCategory(expressApp, alice, 'Work')
+
+    // The guard runs before the category lookup, so it runs identically for an
+    // id that is someone else's and one that does not exist — no new oracle.
+    const othersId = await request(expressApp)
+      .get(`/api/v1/categories/${hers}/tasks?filter=status:eq:bogus`)
+      .set(auth(bob))
+    const missingId = await request(expressApp)
+      .get('/api/v1/categories/definitely-not-a-real-id/tasks?filter=status:eq:bogus')
+      .set(auth(bob))
+
+    expect(othersId.status).toBe(missingId.status)
+    expect(othersId.body).toEqual(missingId.body)
+  })
+})

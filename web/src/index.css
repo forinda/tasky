@@ -272,6 +272,36 @@
   }
 }
 
+/* ── Hit area ───────────────────────────────────────────────────────────────
+   A transparent 44×44 minimum touch target, centred on the control and added as
+   `::after`, so it costs nothing in layout. The board is deliberately dense —
+   32px chrome is the design, not an oversight — so the fix grows what the
+   finger hits, not what the eye sees. `max(100%, 44px)` means a control already
+   big enough in one axis (the ~83px-wide "Sign out") keeps its real width and
+   only gains height; nothing is stretched to a square.
+
+   Pair it with `relative` at the call site rather than declaring `position`
+   here. An already-`absolute` control (the Dialog/Sheet close) is its own
+   containing block and must not be knocked back to static, and tailwind-merge
+   drops our `relative` cleanly when a caller passes its own position utility —
+   whereas a `position` inside this utility would be an unlayered-order coin
+   toss against it.
+
+   Not padding, border, or outline: padding moves the icon and reflows the row,
+   and an outline is visible. Nothing here touches the focus ring — the
+   pseudo-element is not focusable and paints nothing. */
+@utility hit-44 {
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+  }
+}
+
 /* ── Type scale ─────────────────────────────────────────────────────────────
    `type-*`, not `text-*`, and that prefix is load-bearing. tailwind-merge puts
    every `text-…` class in one group, so `cn('text-meta', 'text-foreground')`

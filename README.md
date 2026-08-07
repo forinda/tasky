@@ -35,6 +35,17 @@ to pass `min(32)` would mean `cp .env.example .env` boots a server signing every
 token with a secret published in this repo — silently. Empty fails loudly on the
 first run instead.
 
+**Auth is a short access token plus an httpOnly refresh cookie.** The 15-minute
+JWT lives only in memory in the browser; the refresh cookie is `HttpOnly`,
+`SameSite=Strict`, and rotates on every use. Replaying a spent refresh token
+revokes the whole session family — including for the honest user, which is the
+point: it is the only signal available that a token was stolen.
+
+**Your proxy must preserve `Host`.** `/auth/refresh` and `/auth/logout` reject a
+request whose `Origin` does not match `Host`. A proxy that rewrites `Host`
+therefore rejects every refresh — nginx wants `proxy_set_header Host $host`, and
+the Vite dev proxy is configured with `changeOrigin: false` for the same reason.
+
 **`NODE_ENV` has no default.** An unset value must not resolve to `development`,
 because `/docs`, `/redoc`, `/openapi.json`, and `/_debug` are unauthenticated and
 dev-only. `NODE_ENV=production` is not optional in a deployment.

@@ -11,7 +11,9 @@ export function Wordmark({ className }: { className?: string }) {
     <Link
       to="/"
       className={cn(
-        'font-display text-xl font-bold tracking-[-0.03em] text-foreground',
+        // `relative hit-44` — the wordmark is a 55x28 link, the smallest
+        // target in the header. See the hit-44 note in index.css.
+        'relative hit-44 font-display text-xl font-bold tracking-[-0.03em] text-foreground',
         className,
       )}
     >

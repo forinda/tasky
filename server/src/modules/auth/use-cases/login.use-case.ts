@@ -1,10 +1,10 @@
 import { randomBytes } from 'node:crypto'
 import { Autowired, HttpException, Service } from '@forinda/kickjs'
 import { Database } from '@/db/database'
-import { findUserByEmail, issueSession, type AuthResult } from './auth.queries'
-import { hashPassword, verifyPassword } from './password'
-import { Tokens } from './tokens'
-import type { LoginDTO } from './dtos/login.dto'
+import { findUserByEmail, issueSession, type AuthResult } from '../auth.queries'
+import { hashPassword, verifyPassword } from '../password'
+import { Tokens } from '../tokens'
+import type { LoginDTO } from '../dtos/login.dto'
 
 /**
  * Hashed ONCE at module load, against a random value nobody can supply.

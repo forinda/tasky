@@ -1,9 +1,9 @@
 import { Autowired, HttpException, Service } from '@forinda/kickjs'
 import { Database } from '@/db/database'
-import { createUser, issueSession, type AuthResult } from './auth.queries'
-import { hashPassword } from './password'
-import { Tokens } from './tokens'
-import type { SignupDTO } from './dtos/signup.dto'
+import { createUser, issueSession, type AuthResult } from '../auth.queries'
+import { hashPassword } from '../password'
+import { Tokens } from '../tokens'
+import type { SignupDTO } from '../dtos/signup.dto'
 
 /**
  * SQLite surfaces a unique-index violation as SQLITE_CONSTRAINT_UNIQUE. Match

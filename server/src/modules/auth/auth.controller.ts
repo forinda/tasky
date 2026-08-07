@@ -13,10 +13,10 @@ import {
 import { ApiBearerAuth, ApiPublic, ApiTags } from '@forinda/kickjs-swagger'
 import { CurrentUser } from '@/contributors/current-user.contributor'
 import type { AuthResult } from './auth.queries'
-import { SignupUseCase } from './signup.use-case'
-import { LoginUseCase } from './login.use-case'
-import { RefreshUseCase } from './refresh.use-case'
-import { LogoutUseCase } from './logout.use-case'
+import { SignupUseCase } from './use-cases/signup.use-case'
+import { LoginUseCase } from './use-cases/login.use-case'
+import { RefreshUseCase } from './use-cases/refresh.use-case'
+import { LogoutUseCase } from './use-cases/logout.use-case'
 import {
   clearRefreshCookie,
   isOriginAllowed,

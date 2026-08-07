@@ -7,8 +7,8 @@ import {
   revokeRefreshToken,
   revokeRefreshTokenFamily,
   type AuthResult,
-} from './auth.queries'
-import { Tokens, hashRefreshToken } from './tokens'
+} from '../auth.queries'
+import { Tokens, hashRefreshToken } from '../tokens'
 
 /**
  * Rotation with reuse detection.

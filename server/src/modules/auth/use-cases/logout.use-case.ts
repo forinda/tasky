@@ -1,7 +1,7 @@
 import { Autowired, Service } from '@forinda/kickjs'
 import { Database } from '@/db/database'
-import { findRefreshTokenByHash, revokeRefreshTokenFamily } from './auth.queries'
-import { hashRefreshToken } from './tokens'
+import { findRefreshTokenByHash, revokeRefreshTokenFamily } from '../auth.queries'
+import { hashRefreshToken } from '../tokens'
 
 @Service()
 export class LogoutUseCase {

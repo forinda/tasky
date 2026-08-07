@@ -15,7 +15,7 @@ vi.mock('../auth.queries', () => ({
 
 const { hashPassword, verifyPassword } = await import('../password')
 const { findUserByEmail } = await import('../auth.queries')
-const { LoginUseCase } = await import('../login.use-case')
+const { LoginUseCase } = await import('../use-cases/login.use-case')
 
 /**
  * The enumeration defence is "both branches do the same work". Asserting that

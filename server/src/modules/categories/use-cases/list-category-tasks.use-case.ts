@@ -1,8 +1,8 @@
 import { Autowired, HttpException, Service, type ParsedQuery } from '@forinda/kickjs'
 import { Database } from '@/db/database'
 import { TASK_PRIORITIES, TASK_STATUSES } from '@/db/schema'
-import { TasksRepository } from '@/modules/tasks/tasks.repository'
-import { toTaskResponse } from '@/modules/tasks/tasks.service'
+import { findCategoryIds, selectByCategory } from '@/modules/tasks/tasks.queries'
+import { toTaskResponse } from '@/modules/tasks/tasks.types'
 import { currentOwnerId } from '@/shared/context'
 import { findCategory } from '../categories.queries'
 
@@ -21,7 +21,7 @@ const FILTER_ENUMS: Record<string, readonly string[]> = {
  *
  * Why it has to be here at all: this route reuses TASK_QUERY_CONFIG, so it
  * accepts the same filters `/tasks` does and hands them to the same
- * `TasksRepository.scope`. That scope degrades an unknown enum value to
+ * `selectByCategory`'s owner scope. That scope degrades an unknown enum value to
  * `1 = 0` and ignores the operator entirely — so `?filter=status:bogus`
  * returned an empty page here while `/tasks` returned 422, and `status:neq:done`
  * returned the exact INVERSE of what was asked. An empty page is
@@ -60,14 +60,13 @@ function assertKnownFilterValues(parsed: ParsedQuery): void {
 
 /**
  * Tasks inside one category. Categories owns the ROUTE because the URL is
- * category-shaped; tasks owns the DATA, so the rows come from TasksRepository
+ * category-shaped; tasks owns the DATA, so the rows come from tasks.queries
  * rather than a second tasks query written here.
  */
 @Service()
 export class ListCategoryTasksUseCase {
   constructor(
     @Autowired() private readonly database: Database,
-    @Autowired() private readonly tasks: TasksRepository,
   ) {}
 
   /**
@@ -85,11 +84,11 @@ export class ListCategoryTasksUseCase {
       throw HttpException.notFound('Category not found')
     }
 
-    const { data, total } = await this.tasks.listByCategory(ownerId, categoryId, parsed)
+    const { data, total } = selectByCategory(this.database.db, ownerId, categoryId, parsed)
     // ponytail: one link query per row (N+1), bounded by the page limit — same
     // ceiling TasksService.list already carries. Fix both together or neither.
     return {
-      data: data.map((task) => toTaskResponse(task, this.tasks.findCategoryIds(task.id))),
+      data: data.map((task) => toTaskResponse(task, findCategoryIds(this.database.db, task.id))),
       total,
     }
   }

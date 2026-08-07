@@ -11,7 +11,7 @@ import {
 } from '@forinda/kickjs'
 import { ApiBearerAuth, ApiTags } from '@forinda/kickjs-swagger'
 import { TASK_QUERY_CONFIG } from '@/modules/tasks/tasks.constants'
-import type { TaskResponse } from '@/modules/tasks/tasks.service'
+import type { TaskResponse } from '@/modules/tasks/tasks.types'
 import type { CategoryResponse } from './categories.response'
 import { createCategorySchema } from './dtos/create-category.dto'
 import { updateCategorySchema } from './dtos/update-category.dto'

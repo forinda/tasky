@@ -1,6 +1,6 @@
 import { HttpException, type ParsedQuery } from '@forinda/kickjs'
 import { TASK_PRIORITIES, TASK_STATUSES, type Task } from '@/db/schema'
-import type { CategoryResponse } from '@/modules/categories/categories.service'
+import type { CategoryResponse } from '@/modules/categories/categories.response'
 
 /** Response shape. Explicit field list — never a spread of the row. */
 export interface TaskResponse {

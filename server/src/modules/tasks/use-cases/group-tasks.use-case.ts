@@ -1,7 +1,7 @@
 import { Autowired, Service } from '@forinda/kickjs'
 import { Database } from '@/db/database'
 import type { Task } from '@/db/schema'
-import { toCategoryResponse } from '@/modules/categories/categories.service'
+import { toCategoryResponse } from '@/modules/categories/categories.response'
 import { currentOwnerId } from '@/shared/context'
 import { selectGrouped } from '../tasks.queries'
 import { GROUPED_CAP, toTaskResponse, type GroupedColumn, type TaskResponse } from '../tasks.types'

@@ -30,6 +30,14 @@ interface TaskCardProps {
   onOpen: (id: string) => void
   /** Set on the copy rendered inside the DragOverlay, which must not drag itself. */
   isOverlay?: boolean
+  /**
+   * Set in the category view, where there is nothing to drag to: `/tasks/grouped`
+   * has no move-to-category semantics and `categoryIds` replaces the whole set,
+   * so a drop between category columns cannot mean one thing. A card that is
+   * inert rather than draggable-but-ignored is the honest version — the drag
+   * never starts instead of starting and quietly achieving nothing.
+   */
+  dragDisabled?: boolean
 }
 
 /**
@@ -42,24 +50,32 @@ interface TaskCardProps {
  * clickable div gives keyboard users two stops for one destination, and screen
  * readers a nested-interactive warning.
  */
-export function TaskCard({ task, categoryNames, onOpen, isOverlay = false }: TaskCardProps) {
+export function TaskCard({
+  task,
+  categoryNames,
+  onOpen,
+  isOverlay = false,
+  dragDisabled = false,
+}: TaskCardProps) {
   const names = task.categoryIds.map((id) => categoryNames.get(id)).filter(Boolean)
 
   // The overlay copy is a portal-rendered picture of the card. Registering it as
   // a draggable too would mean two draggables share one id.
-  const draggable = useDraggable({ id: task.id, disabled: isOverlay })
+  const inert = isOverlay || dragDisabled
+  const draggable = useDraggable({ id: task.id, disabled: inert })
   const { attributes, listeners, setNodeRef, isDragging } = draggable
 
   return (
     <button
-      ref={isOverlay ? undefined : setNodeRef}
+      ref={inert ? undefined : setNodeRef}
       type="button"
       onClick={() => onOpen(task.id)}
       // `attributes` carries role, tabIndex, and the aria-describedby that
       // points at dnd-kit's instructions — without it the keyboard sensor is
-      // reachable but undocumented.
-      {...(isOverlay ? {} : attributes)}
-      {...(isOverlay ? {} : listeners)}
+      // reachable but undocumented. Withheld when the card cannot drag, so a
+      // screen reader is not told about a gesture that does nothing here.
+      {...(inert ? {} : attributes)}
+      {...(inert ? {} : listeners)}
       className={cn(
         'w-full rounded-md border border-border bg-card p-3 text-left shadow-xs transition-colors hover:border-ring/40',
         // The original stays in place but recedes, so the column keeps its shape

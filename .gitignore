@@ -19,3 +19,6 @@ data/
 # stale the next time the UI changes and nothing ever updates them.
 .mcp-assets/
 .playwright-mcp/
+
+# Agent worktrees — transient, and each is its own git repo.
+.claude/

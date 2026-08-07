@@ -149,7 +149,9 @@ export function Combobox(props: ComboboxProps) {
                 aria-label={`Remove ${it.label}`}
                 disabled={disabled}
                 onClick={() => toggle(it.value)}
-                className="rounded-sm hover:text-foreground"
+                // A bare 12px icon was the smallest target in the system —
+                // under even WCAG 2.2's 24px floor. The chip stays 12px.
+                className="relative hit-44 rounded-sm hover:text-foreground"
               >
                 <XIcon className="size-3" aria-hidden="true" />
               </button>
@@ -166,7 +168,10 @@ export function Combobox(props: ComboboxProps) {
             disabled={disabled}
             aria-label={ariaLabel}
             className={cn(
-              'flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
+              // h-9 is 36px tall; `hit-44` adds the missing 8px as an invisible
+              // ::after so the filter selects are thumb-sized without the
+              // filter bar growing.
+              'relative hit-44 flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
               triggerClassName,
             )}
           >

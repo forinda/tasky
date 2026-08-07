@@ -24,13 +24,13 @@ export function Nav() {
         <div className="flex items-center gap-1 sm:gap-2">
           <a
             href="#features"
-            className="hidden rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-block"
+            className="relative hit-44 hidden rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-block"
           >
             Features
           </a>
           <Link
             to="/login"
-            className="hidden rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-block"
+            className="relative hit-44 hidden rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-block"
           >
             Log in
           </Link>

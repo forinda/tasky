@@ -18,19 +18,7 @@ export function Hero() {
   }
 
   return (
-    <section className="relative isolate overflow-hidden">
-      {/* Violet→cyan, blurred, and kept to the right of the text column. Never
-          under a paragraph: a gradient behind text is how a page passes review
-          and fails the contrast check in the browser.
-
-          `-z-10` on its own put it behind the page background and made it
-          invisible — the section needs `isolate` so the blob sits inside this
-          stacking context rather than under everything. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-32 right-[-25%] -z-10 h-[38rem] w-[38rem] rounded-full bg-[radial-gradient(circle_at_30%_30%,#6d4aff,#00c2ff)] opacity-25 blur-3xl md:right-[-8%]"
-      />
-
+    <section className="relative">
       <div className="mx-auto max-w-6xl px-5 pt-16 pb-20 sm:px-8 sm:pt-24 sm:pb-28">
         <div className="max-w-2xl">
           {/* Factual, and about the product rather than its adoption. There are

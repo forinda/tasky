@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'adero.token'
+const STORAGE_KEY = 'tasky.token'
 
 /**
  * ponytail: the token lives in localStorage, which any successful XSS can read.

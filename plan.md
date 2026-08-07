@@ -54,7 +54,7 @@ with the auth-bearing `users` table this design needs.
 | Grouping | Nested route **and** grouped payload | Drill-down plus board view |
 | Repository shape | Concrete classes, no interfaces, no DI tokens | Types come from Drizzle inference |
 | Frontend | React + Vite SPA, served by `SpaAdapter` | One process, one deploy, real framework for the board |
-| Landing direction | ClickUp-sassy | Punchy headline, bold accent, gradient product shot |
+| Landing direction | ClickUp-sassy | Punchy headline, bold red accent, live board vignette (no gradient) |
 
 ---
 
@@ -546,28 +546,37 @@ Root `build` script builds web first, then api.
 
 ## 12. Visual system
 
-Direction is ClickUp-sassy: a short opinionated headline, one bold accent, a
-product shot on a gradient field. Executed with more restraint than ClickUp
-itself — one accent, not three.
+Direction is ClickUp-sassy: a short opinionated headline, one bold accent.
+Executed with more restraint than ClickUp itself — one accent, not three.
 
-**The constraint that drives the palette:** priority and status already need
-semantic colors (red/amber for urgency, green for done). If the brand accent is
-also red or green, the landing page and the board fight each other. So the
-accent lives in the violet family, leaving the entire warm and green range free
-for meaning.
+**The product is `tasky`.** Renamed during Story 9. The repo, the packages, and
+the server directory still say `adero`; only the user-facing name changed.
+
+**Brand is red. No gradients.** Both decided during Story 9 and both reverse
+earlier text in this section, which said the accent must avoid red precisely
+because priority and status need the warm range for meaning. That reasoning was
+sound and the collisions it predicted are real, so they are managed explicitly
+rather than wished away:
+
+| Collision | Resolution |
+|---|---|
+| Primary vs `destructive` | A destructive button that looks like the primary button has no warning left in it. Destructive is a markedly darker red — L 0.45 against primary's 0.57 — so side by side they read as different weights rather than two shades of one colour. Measured: 8.14:1 for white on destructive, 4.96:1 on primary. |
+| Primary vs priority `high` | Left alone. That red is a 6px dot that always ships the word "High" beside it, so it cannot be mistaken for a control. |
+
+The gradient hero blob is gone. It was also failing on its own terms: at 320px
+the eyebrow and subhead sat on it at 3.98:1, under the 4.5:1 floor.
 
 ```
-Brand
-  accent        #6D4AFF   violet — buttons, links, focus rings
-  accent-hover  #5B3AE0
-  gradient      #6D4AFF → #00C2FF   hero blob only, never on text
+Brand — red. No gradient anywhere.
+  primary       oklch(0.57  0.209 27.5)   buttons, links, focus rings
+  destructive   oklch(0.45  0.17  25)     deliberately darker than primary
 
-Neutrals
-  ink           #0E0E13   headlines, primary text
-  muted         #6B6B7B   secondary text
-  hairline      #E6E6EF   borders, dividers
-  surface       #FFFFFF   cards
-  canvas        #FAFAFC   page background
+Neutrals — these names are shadcn's, and shadcn's are the only ones used.
+  foreground        oklch(0.166 0.01  285.2)   headlines, primary text
+  muted-foreground  oklch(0.504 0.019 285.7)   secondary text
+  border / input    oklch(0.928 0.012 286.2)   borders, dividers
+  card / popover    oklch(1 0 0)               cards
+  background        oklch(0.986 0.003 286.4)   page background
 
 Semantic — priority
   low     #64748B  slate
@@ -584,7 +593,7 @@ Semantic — status
 its label, every priority pill with its word. This is an accessibility floor —
 roughly one in twelve men has some form of color vision deficiency — and it also
 resolves the only remaining collision in the palette, sky `in_progress` sitting
-near violet accent at small sizes.
+near the red primary at small sizes.
 
 **Type** — a deliberate pairing, not one face everywhere. **Bricolage Grotesque
 Variable** for display (landing hero, page titles, empty states — nowhere else),
@@ -614,7 +623,7 @@ across all eight landing references.
 | Section | Content |
 |---|---|
 | Nav | Wordmark, Features, Pricing, Log in, Get started free |
-| Hero | Social proof line above headline, punchy headline, one-line subhead, email field + button, product screenshot of the board on the violet→cyan gradient blob |
+| Hero | Factual eyebrow above headline, punchy headline, one-line subhead, email field + button, live board vignette built from the real components |
 | Logo strip | "Trusted by teams at…" — placeholder marks until there is something true to put here |
 | Features | Three columns: board, categories, priorities. Icon, heading, one sentence |
 | Board showcase | Full-width screenshot, offset so it bleeds off the right edge (the Coda move) |

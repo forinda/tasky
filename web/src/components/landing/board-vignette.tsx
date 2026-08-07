@@ -30,7 +30,14 @@ function TaskCard({ task }: { task: VignetteTask }) {
   )
 }
 
-const COLUMNS: ReadonlyArray<{ status: TaskStatus; tasks: ReadonlyArray<VignetteTask> }> = [
+type Column = { status: TaskStatus; tasks: ReadonlyArray<VignetteTask> }
+
+/**
+ * The hero board is a first week: a few tasks, and Done still empty. That empty
+ * column is the point — it is the state every board spends most of its life in,
+ * and the one most products crop out of their screenshots.
+ */
+const EARLY: ReadonlyArray<Column> = [
   {
     status: 'todo',
     tasks: [
@@ -44,9 +51,37 @@ const COLUMNS: ReadonlyArray<{ status: TaskStatus; tasks: ReadonlyArray<Vignette
       { title: 'Rewrite the onboarding email', priority: 'high', category: 'Growth', when: 'Today' },
     ],
   },
-  // The third column is empty on purpose. An empty column is the state every
-  // board spends most of its life in, and the one most products hide.
   { status: 'done', tasks: [] },
+]
+
+/**
+ * The showcase board is the same board a month later. The section claims
+ * "everything on it", so showing the identical three cards twice would be the
+ * page contradicting itself.
+ */
+const BUSY: ReadonlyArray<Column> = [
+  {
+    status: 'todo',
+    tasks: [
+      { title: 'Draft the launch note', priority: 'medium', category: 'Marketing', when: 'Fri' },
+      { title: 'Pick a pricing page layout', priority: 'low', category: 'Marketing', when: 'Next week' },
+      { title: 'Chase the SOC 2 questionnaire', priority: 'low', category: 'Ops', when: 'Aug 20' },
+    ],
+  },
+  {
+    status: 'in_progress',
+    tasks: [
+      { title: 'Rewrite the onboarding email', priority: 'high', category: 'Growth', when: 'Today' },
+      { title: 'Fix the duplicate invite bug', priority: 'high', category: 'Engineering', when: 'Today' },
+    ],
+  },
+  {
+    status: 'done',
+    tasks: [
+      { title: 'Ship the category filter', priority: 'medium', category: 'Engineering', when: 'Mon' },
+      { title: 'Move billing to the new plan', priority: 'low', category: 'Ops', when: 'Last week' },
+    ],
+  },
 ]
 
 const DOT: Record<TaskStatus, string> = {
@@ -67,20 +102,32 @@ const DOT: Record<TaskStatus, string> = {
 export function BoardVignette({
   className,
   style,
+  board = 'early',
 }: {
   className?: string
   style?: React.CSSProperties
+  board?: 'early' | 'busy'
 }) {
+  const COLUMNS = board === 'busy' ? BUSY : EARLY
+
   return (
     <div
       style={style}
       className={cn(
-        'grid grid-cols-3 gap-3 rounded-xl border border-border bg-background/60 p-3 shadow-lg backdrop-blur-sm sm:gap-4 sm:p-4',
+        // Opaque, not translucent. A see-through panel lets the gradient blob
+        // behind it into the text contrast, where the composited-colour audit
+        // cannot see it — the numbers say white, the screen says lavender.
+        // Nothing about a card needs the page showing through it.
+        // Below `sm` the three columns become a strip that scrolls inside its
+        // own panel. Squeezing them into 85px each turned every card title into
+        // four lines and truncated "In progress" — technically no page scroll,
+        // and unreadable. The page still never scrolls sideways; this does.
+        'flex gap-3 overflow-x-auto rounded-xl border border-border bg-background p-3 shadow-lg sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:p-4',
         className,
       )}
     >
       {COLUMNS.map(({ status, tasks }) => (
-        <section key={status} className="min-w-0">
+        <section key={status} className="w-44 shrink-0 sm:w-auto sm:min-w-0">
           <div className="mb-2 flex items-center gap-2">
             <span className={cn('size-1.5 shrink-0 rounded-full', DOT[status])} aria-hidden="true" />
             <h3 className="truncate type-meta font-medium text-foreground">

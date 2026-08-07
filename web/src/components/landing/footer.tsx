@@ -65,7 +65,7 @@ export function Footer() {
       </div>
 
       <div className="mx-auto max-w-6xl px-5 pb-10 sm:px-8">
-        <p className="type-meta text-muted-foreground">© 2026 adero</p>
+        <p className="type-meta text-muted-foreground">© 2026 tasky</p>
       </div>
     </footer>
   )

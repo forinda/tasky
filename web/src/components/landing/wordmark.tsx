@@ -15,7 +15,7 @@ export function Wordmark({ className }: { className?: string }) {
         className,
       )}
     >
-      adero
+      tasky
       <span className="text-primary">.</span>
     </Link>
   )

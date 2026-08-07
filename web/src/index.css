@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  /* The accent sits in the violet family deliberately: priority and status need
+     the warm and green ranges for meaning, so a red brand accent would fight a
+     red "high priority" pill. See plan.md §12. */
+  --color-accent: #6d4aff;
+  --color-accent-hover: #5b3ae0;
+  --color-ink: #0e0e13;
+  --color-muted: #6b6b7b;
+  --color-hairline: #e6e6ef;
+  --color-canvas: #fafafc;
+
+  /* Semantic — priority. Never encoded in colour alone; every pill ships its
+     word too, which is both an accessibility floor and what keeps sky
+     `in_progress` distinguishable from the violet accent at small sizes. */
+  --color-priority-low: #64748b;
+  --color-priority-medium: #f59e0b;
+  --color-priority-high: #ef4444;
+
+  /* Semantic — status. */
+  --color-status-todo: #94a3b8;
+  --color-status-progress: #0ea5e9;
+  --color-status-done: #22c55e;
+}

@@ -1,5 +1,5 @@
 import { createClient } from '@forinda/kickjs-client'
-import { getToken } from './auth/token'
+import { getToken } from './token'
 
 /**
  * `KickApi` is ambient — declared by the server's `kick typegen` output and

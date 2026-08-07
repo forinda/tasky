@@ -13,5 +13,9 @@ dist/
 *.db-shm
 data/
 
-# playwright-mcp scratch (snapshots, console logs, screenshots)
+# Browser-automation output — screenshots, DOM snapshots, console logs.
+# Agents write here deliberately (see CLAUDE.md); none of it is ever committed.
+# Screenshots are evidence for one review, not repository content: they go
+# stale the next time the UI changes and nothing ever updates them.
+.mcp-assets/
 .playwright-mcp/

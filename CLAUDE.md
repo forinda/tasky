@@ -11,6 +11,25 @@ task-oriented skills under `server/.agents/skills/`. Read those before
 touching anything under `server/`. There is no root-level `.agents/`
 copy — nothing regenerates it, so it would only go stale.
 
+## Browser automation output
+
+Screenshots, DOM snapshots, and console logs from browser-automation tools go in
+**`.mcp-assets/`**, which is gitignored. Never write them to the repo root, and
+never commit them.
+
+They are evidence for one review, not repository content: a screenshot goes
+stale the next time the UI changes and nothing ever updates it, so a committed
+one is a picture of a version the code no longer describes. Two did reach `main`
+this way (`auth-login.png`, `login.png`) before the rule existed.
+
+```
+.mcp-assets/board-dark.png        # good
+./board-dark.png                  # never — this lands in a commit
+```
+
+`.playwright-mcp/` is also ignored — some tools write their own scratch
+directory there and it is not always configurable.
+
 ## Root scripts
 
 ```bash

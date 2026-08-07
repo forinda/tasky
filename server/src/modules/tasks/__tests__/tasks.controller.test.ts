@@ -392,6 +392,30 @@ describe('regressions found by adversarial audit', () => {
     expect(res.status).toBe(422)
   })
 
+  it('rejects neq on categoryId too, not just on the enum fields', async () => {
+    const { expressApp, token } = await appWithUser()
+    const cat = await request(expressApp)
+      .post('/api/v1/categories')
+      .set(auth(token))
+      .send({ name: 'Work' })
+    await request(expressApp)
+      .post('/api/v1/tasks')
+      .set(auth(token))
+      .send({ title: 'in work', categoryIds: [cat.body.id] })
+    await request(expressApp).post('/api/v1/tasks').set(auth(token)).send({ title: 'loose' })
+
+    // The operator guard used to sit BEHIND an enum lookup, so any filterable
+    // field without a closed set of values skipped it entirely. categoryId is
+    // the first such field: `neq` would have been silently treated as `eq` and
+    // returned the exact inverse — precisely the bug the status test above
+    // exists to prevent, re-opened by adding a non-enum field.
+    const res = await request(expressApp)
+      .get(`/api/v1/tasks?filter=categoryId:neq:${cat.body.id}`)
+      .set(auth(token))
+
+    expect(res.status).toBe(422)
+  })
+
   it('rejects a whitespace-only title', async () => {
     const { expressApp, token } = await appWithUser()
     const res = await request(expressApp)

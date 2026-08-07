@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Wordmark } from '@/components/landing/wordmark'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { authQueries } from '@/features/auth/queries'
 import { useLogout } from '@/features/auth/mutations'
 
@@ -20,9 +21,12 @@ export function Board() {
     <div className="min-h-dvh bg-background text-foreground">
       <header className="flex items-center justify-between border-b border-border px-5 py-4 sm:px-8">
         <Wordmark />
-        <Button variant="ghost" size="sm" onClick={() => logout.mutate()} disabled={logout.isPending}>
-          {logout.isPending ? 'Signing out…' : 'Sign out'}
-        </Button>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <Button variant="ghost" size="sm" onClick={() => logout.mutate()} disabled={logout.isPending}>
+            {logout.isPending ? 'Signing out…' : 'Sign out'}
+          </Button>
+        </div>
       </header>
 
       <main className="p-8">

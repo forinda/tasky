@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Wordmark } from '@/components/landing/wordmark'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 interface AuthCardProps {
   title: string
@@ -16,8 +17,9 @@ interface AuthCardProps {
 export function AuthCard({ title, intro, error, children, footer }: AuthCardProps) {
   return (
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
-      <header className="px-5 py-6 sm:px-8">
+      <header className="flex items-center justify-between px-5 py-6 sm:px-8">
         <Wordmark />
+        <ThemeToggle />
       </header>
 
       <main className="flex flex-1 items-start justify-center px-5 pt-6 pb-16 sm:items-center sm:px-8 sm:pt-0">

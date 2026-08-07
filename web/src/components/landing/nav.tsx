@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { Wordmark } from './wordmark'
 
 /**
@@ -33,6 +34,7 @@ export function Nav() {
           >
             Log in
           </Link>
+          <ThemeToggle />
           {/* The one primary action on the page. Same words here, in the hero,
               and in the closing band — an action that changes its name between
               sections reads as three different actions. */}

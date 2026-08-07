@@ -15,10 +15,8 @@ export interface ComboboxItem {
   readonly disabled?: boolean
 }
 
-export interface ComboboxProps {
+interface BaseProps {
   readonly items: ReadonlyArray<ComboboxItem>
-  readonly value: string | null
-  readonly onChange: (value: string | null) => void
   readonly placeholder?: string
   readonly searchPlaceholder?: string
   readonly emptyMessage?: string
@@ -38,6 +36,26 @@ export interface ComboboxProps {
   readonly id?: string
 }
 
+interface SingleProps extends BaseProps {
+  readonly multi?: false
+  readonly value: string | null
+  readonly onChange: (value: string | null) => void
+}
+
+interface MultiProps extends BaseProps {
+  readonly multi: true
+  readonly value: ReadonlyArray<string>
+  readonly onChange: (value: string[]) => void
+}
+
+/**
+ * A discriminated union, so the two modes cannot be mixed up: `multi` changes
+ * both the value type and the callback signature together. Passing a `string[]`
+ * to the single-select form, or forgetting `multi` while handing it an array,
+ * is a compile error rather than a runtime surprise.
+ */
+export type ComboboxProps = SingleProps | MultiProps
+
 /**
  * A select you can type into. Radix Popover for focus management plus cmdk for
  * the filtering and keyboard list, so arrow keys, type-ahead, and the
@@ -46,32 +64,100 @@ export interface ComboboxProps {
  * Use it where the option count can outgrow a scroll — categories, later
  * assignees. A plain <Select> stays the right control for three fixed statuses:
  * a search box over three items is furniture.
+ *
+ * Multi-select ported from the somakwetu package alongside the single-select
+ * case. Its remote-search, inline-checklist, and hidden-form-input variants are
+ * still only in that source — none has a caller here.
  */
-export function Combobox({
-  items,
-  value,
-  onChange,
-  placeholder = 'Select…',
-  searchPlaceholder = 'Search…',
-  emptyMessage = 'No matches.',
-  emptyAction,
-  disabled,
-  className,
-  triggerClassName,
-  contentClassName,
-  'aria-label': ariaLabel,
-  id,
-}: ComboboxProps) {
+export function Combobox(props: ComboboxProps) {
+  const {
+    items,
+    placeholder = 'Select…',
+    searchPlaceholder = 'Search…',
+    emptyMessage = 'No matches.',
+    emptyAction,
+    disabled,
+    className,
+    triggerClassName,
+    contentClassName,
+    'aria-label': ariaLabel,
+    id,
+  } = props
+
   const [open, setOpen] = React.useState(false)
 
-  const selected = items.find((it) => it.value === value)
-  // A value with no matching item still has to show something — a stale id from
-  // a category that was renamed away should not silently read as "nothing
-  // selected".
-  const label = selected?.label ?? value ?? placeholder
+  const selectedValues: ReadonlyArray<string> = props.multi
+    ? props.value
+    : props.value
+      ? [props.value]
+      : []
+
+  const selectedItems = selectedValues.map(
+    (value) =>
+      items.find((it) => it.value === value) ??
+      // A value with no matching item still has to show something — an id from
+      // a category that was renamed or deleted should not silently read as
+      // "nothing selected".
+      ({ value, label: value } satisfies ComboboxItem),
+  )
+
+  function toggle(value: string) {
+    if (props.multi) {
+      const next = props.value.includes(value)
+        ? props.value.filter((v) => v !== value)
+        : [...props.value, value]
+      props.onChange(next)
+      // The popover stays open: picking several things is the whole point, and
+      // reopening it between each one turns three choices into six clicks.
+      return
+    }
+    props.onChange(value === props.value ? null : value)
+    setOpen(false)
+  }
+
+  function clearAll(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (props.multi) props.onChange([])
+    else props.onChange(null)
+  }
+
+  const triggerLabel = props.multi
+    ? selectedValues.length === 0
+      ? placeholder
+      : `${selectedValues.length} selected`
+    : (selectedItems[0]?.label ?? placeholder)
+
+  const hasSelection = selectedValues.length > 0
 
   return (
     <div className={cn('w-full', className)}>
+      {props.multi && selectedItems.length > 0 ? (
+        // Chips above the trigger rather than inside it. The trigger is a
+        // <button>, and a removable chip needs its own button — nesting one
+        // inside the other is invalid HTML and a hydration error.
+        <div className="mb-1.5 flex flex-wrap gap-1">
+          {selectedItems.map((it) => (
+            <span
+              key={it.value}
+              className="inline-flex items-center gap-1 rounded-md bg-secondary px-1.5 py-0.5 text-xs text-secondary-foreground"
+            >
+              {it.label}
+              <button
+                type="button"
+                // Names the specific chip. A row of identical "Remove" buttons
+                // is useless read aloud.
+                aria-label={`Remove ${it.label}`}
+                disabled={disabled}
+                onClick={() => toggle(it.value)}
+                className="rounded-sm hover:text-foreground"
+              >
+                <XIcon className="size-3" aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+
       <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
         <PopoverPrimitive.Trigger asChild>
           <button
@@ -84,21 +170,20 @@ export function Combobox({
               triggerClassName,
             )}
           >
-            <span className={cn('truncate', !selected && 'text-muted-foreground')}>{label}</span>
+            <span className={cn('truncate', !hasSelection && 'text-muted-foreground')}>
+              {triggerLabel}
+            </span>
             <span className="flex items-center gap-1">
-              {value && !disabled ? (
+              {hasSelection && !disabled ? (
                 // A <span role="button">, not a <button>: Radix renders this
                 // whole trigger as a <button> via asChild, and a nested button
                 // is invalid HTML. tabIndex={-1} keeps it out of the tab order —
-                // keyboard users clear by selecting the row again.
+                // keyboard users clear by toggling rows, or via the chips above.
                 <span
                   role="button"
                   aria-label="Clear selection"
                   tabIndex={-1}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onChange(null)
-                  }}
+                  onClick={clearAll}
                   className="inline-flex cursor-pointer text-muted-foreground hover:text-foreground"
                 >
                   <XIcon className="size-3.5" />
@@ -129,37 +214,39 @@ export function Combobox({
                   {emptyAction ? <div className="mt-2">{emptyAction}</div> : null}
                 </CommandEmpty>
                 <CommandGroup>
-                  {items.map((it) => (
-                    <CommandItem
-                      key={it.value}
-                      value={it.value}
-                      // cmdk matches on `value`, which is an id — without this
-                      // the user would be searching UUIDs.
-                      keywords={[it.label, it.description ?? ''].filter(Boolean)}
-                      disabled={it.disabled}
-                      onSelect={() => {
-                        if (it.disabled) return
-                        onChange(it.value === value ? null : it.value)
-                        setOpen(false)
-                      }}
-                      className="flex cursor-pointer items-start gap-2 rounded-sm px-2 py-1.5 text-sm aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50"
-                    >
-                      <CheckIcon
-                        className={cn(
-                          'mt-0.5 size-3.5 shrink-0',
-                          it.value === value ? 'text-foreground' : 'text-transparent',
-                        )}
-                      />
-                      <div className="min-w-0">
-                        <div className="truncate">{it.label}</div>
-                        {it.description ? (
-                          <div className="truncate text-xs text-muted-foreground">
-                            {it.description}
-                          </div>
-                        ) : null}
-                      </div>
-                    </CommandItem>
-                  ))}
+                  {items.map((it) => {
+                    const isSelected = selectedValues.includes(it.value)
+                    return (
+                      <CommandItem
+                        key={it.value}
+                        value={it.value}
+                        // cmdk matches on `value`, which is an id — without this
+                        // the user would be searching UUIDs.
+                        keywords={[it.label, it.description ?? ''].filter(Boolean)}
+                        disabled={it.disabled}
+                        onSelect={() => {
+                          if (it.disabled) return
+                          toggle(it.value)
+                        }}
+                        className="flex cursor-pointer items-start gap-2 rounded-sm px-2 py-1.5 text-sm aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50"
+                      >
+                        <CheckIcon
+                          className={cn(
+                            'mt-0.5 size-3.5 shrink-0',
+                            isSelected ? 'text-foreground' : 'text-transparent',
+                          )}
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate">{it.label}</div>
+                          {it.description ? (
+                            <div className="truncate text-xs text-muted-foreground">
+                              {it.description}
+                            </div>
+                          ) : null}
+                        </div>
+                      </CommandItem>
+                    )
+                  })}
                 </CommandGroup>
               </CommandList>
             </Command>

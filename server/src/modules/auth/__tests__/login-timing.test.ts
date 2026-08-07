@@ -17,7 +17,13 @@ const { AuthService } = await import('../auth.service')
  * measurably slower (37ms vs 58ms when audited).
  */
 describe('login does equal work on both branches', () => {
-  const tokens = { sign: vi.fn(async () => 'tok') } as never
+  const tokens = {
+    signAccess: vi.fn(async () => 'tok'),
+    mintRefresh: vi.fn(() => ({ token: 'r', hash: 'h', expiresAt: new Date(Date.now() + 1000) })),
+  } as never
+  // The login path stores a refresh token on success. Both cases here fail
+  // before that point, but the constructor needs the collaborator either way.
+  const refreshTokens = { create: vi.fn(async () => ({ id: 'row-1' })) } as never
 
   beforeEach(() => {
     vi.mocked(hashPassword).mockClear()
@@ -28,7 +34,7 @@ describe('login does equal work on both branches', () => {
     const users = {
       findByEmail: async () => ({ id: 'u1', passwordHash: 'stored' }),
     } as never
-    const service = new AuthService(users, tokens)
+    const service = new AuthService(users, tokens, refreshTokens)
 
     await expect(
       service.login({ email: 'known@example.com', password: 'x' }),
@@ -40,7 +46,7 @@ describe('login does equal work on both branches', () => {
 
   it('calls verifyPassword exactly once and hashPassword never — unknown email', async () => {
     const users = { findByEmail: async () => null } as never
-    const service = new AuthService(users, tokens)
+    const service = new AuthService(users, tokens, refreshTokens)
 
     await expect(
       service.login({ email: 'nobody@example.com', password: 'x' }),

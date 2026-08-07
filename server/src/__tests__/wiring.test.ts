@@ -20,7 +20,7 @@ describe('production wiring', () => {
       .send({ email: 'wiring@example.com', password: 'hunter2hunter2', name: 'W' })
 
     expect(res.status).toBe(201)
-    expect(res.body.token).toBeTruthy()
+    expect(res.body.accessToken).toBeTruthy()
   })
 
   it('uses the onNotFound handler bootstrap() was given', async () => {

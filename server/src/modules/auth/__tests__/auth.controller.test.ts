@@ -29,7 +29,7 @@ describe('POST /api/v1/auth/signup', () => {
     const res = await request(expressApp).post('/api/v1/auth/signup').send(VALID)
 
     expect(res.status).toBe(201)
-    expect(res.body.token).toBeTruthy()
+    expect(res.body.accessToken).toBeTruthy()
     expect(res.body.user.email).toBe(VALID.email)
   })
 
@@ -89,7 +89,7 @@ describe('POST /api/v1/auth/login', () => {
       .send({ email: 'd@example.com', password: VALID.password })
 
     expect(res.status).toBe(200)
-    expect(res.body.token).toBeTruthy()
+    expect(res.body.accessToken).toBeTruthy()
   })
 
   it('fails identically for a wrong password and an unknown email', async () => {
@@ -119,7 +119,7 @@ describe('GET /api/v1/auth/me', () => {
     const res = await request(expressApp)
       .post('/api/v1/auth/signup')
       .send({ ...VALID, email: 'me@example.com' })
-    return { expressApp, token: res.body.token as string, user: res.body.user }
+    return { expressApp, token: res.body.accessToken as string, user: res.body.user }
   }
 
   it('returns the current user for a valid token', async () => {

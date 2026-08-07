@@ -32,7 +32,7 @@ async function makeApp() {
   return {
     expressApp,
     db: Container.getInstance().resolve(Database).db,
-    token: signup.body.token as string,
+    token: signup.body.accessToken as string,
     ownerId: signup.body.user.id as string,
   }
 }
@@ -130,14 +130,8 @@ describe('deleting a user', () => {
   it('takes their refresh tokens with them', async () => {
     const { db, ownerId } = await makeApp()
 
-    db.insert(refreshTokens)
-      .values({
-        userId: ownerId,
-        familyId: 'fam-1',
-        tokenHash: 'hash-1',
-        expiresAt: new Date(Date.now() + 60_000),
-      })
-      .run()
+    // Signing up issues one, so there is no need to plant a row — and using
+    // the real one means this exercises the path the application takes.
     expect(db.select().from(refreshTokens).all()).toHaveLength(1)
 
     db.delete(users).where(eq(users.id, ownerId)).run()

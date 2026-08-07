@@ -32,7 +32,7 @@ async function makeApp() {
     const res = await request(expressApp)
       .post('/api/v1/auth/signup')
       .send({ email, password: 'hunter2hunter2', name: email })
-    return res.body.token as string
+    return res.body.accessToken as string
   }
 
   return { expressApp, signup }

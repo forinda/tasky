@@ -14,11 +14,14 @@ import { Categories } from '@/routes/categories'
  * Rows are addressed by their buttons rather than by their visible name. The
  * name appears three times per row — once as the label, twice more inside the
  * buttons' sr-only suffixes — so `getByText('Design')` is ambiguous, not wrong.
- * The `\s*` is not cosmetic: the accessible-name algorithm trims each text node
- * before joining, so "Rename" + " Design" computes as "RenameDesign".
+ * The exact space is not cosmetic: the accessible-name algorithm trims each text node
+ * before joining, so a space inside the sr-only span vanishes and "Rename" +
+ * " Design" computed as "RenameDesign" — announced as one word. The space now
+ * sits outside the span in category-row.tsx; this pattern REQUIRES it, so the
+ * fix cannot silently regress.
  */
-const rowNamed = (name: string) => new RegExp(`^Rename\\s*${name}$`)
-const deleteNamed = (name: string) => new RegExp(`^Delete\\s*${name}$`)
+const rowNamed = (name: string) => new RegExp(`^Rename ${name}$`)
+const deleteNamed = (name: string) => new RegExp(`^Delete ${name}$`)
 
 describe('the categories screen', () => {
   it('renders the categories you already have', async () => {

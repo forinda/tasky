@@ -4,7 +4,7 @@ import type { Task } from '@/db/schema'
 import { toCategoryResponse } from '@/modules/categories/categories.response'
 import { currentOwnerId } from '@/shared/context'
 import { selectGrouped } from '../tasks.queries'
-import { GROUPED_CAP, toTaskResponse, type GroupedColumn, type TaskResponse } from '../tasks.types'
+import { GROUPED_CAP, toTaskResponse, type GroupedBoard, type TaskResponse } from '../tasks.types'
 
 /**
  * The board. One pass over the flat join rows folds each task's links back
@@ -15,14 +15,18 @@ import { GROUPED_CAP, toTaskResponse, type GroupedColumn, type TaskResponse } fr
  * column even with no tasks: a column that vanishes when emptied is a board
  * you cannot drag a card back onto. The uncategorized bucket is last and
  * always present, so the client never has to synthesize it.
+ *
+ * `truncated` rides along because the cap is a server decision: a client that
+ * has to infer it from a row count needs its own copy of GROUPED_CAP, and that
+ * copy goes stale without failing.
  */
 @Service()
 export class GroupTasksUseCase {
   constructor(@Autowired() private readonly database: Database) {}
 
-  async execute(): Promise<GroupedColumn[]> {
+  async execute(): Promise<GroupedBoard> {
     const ownerId = currentOwnerId()
-    const { rows, categories } = selectGrouped(this.database.db, ownerId, GROUPED_CAP)
+    const { rows, categories, truncated } = selectGrouped(this.database.db, ownerId, GROUPED_CAP)
 
     // Map keeps first-seen order, and the rows arrive oldest-first.
     const seen = new Map<string, { task: Task; categoryIds: string[] }>()
@@ -44,9 +48,12 @@ export class GroupTasksUseCase {
       else for (const id of categoryIds) columns.get(id)?.push(response)
     }
 
-    return [
-      ...categories.map((c) => ({ category: toCategoryResponse(c), tasks: columns.get(c.id)! })),
-      { category: null, tasks: uncategorized },
-    ]
+    return {
+      columns: [
+        ...categories.map((c) => ({ category: toCategoryResponse(c), tasks: columns.get(c.id)! })),
+        { category: null, tasks: uncategorized },
+      ],
+      truncated,
+    }
   }
 }

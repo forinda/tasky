@@ -1,7 +1,7 @@
 import { Autowired, HttpException, Service, type ParsedQuery } from '@forinda/kickjs'
 import { Database } from '@/db/database'
 import { TASK_PRIORITIES, TASK_STATUSES } from '@/db/schema'
-import { findCategoryIds, selectByCategory } from '@/modules/tasks/tasks.queries'
+import { findCategoryIdsByTask, selectByCategory } from '@/modules/tasks/tasks.queries'
 import { toTaskResponse } from '@/modules/tasks/tasks.types'
 import { currentOwnerId } from '@/shared/context'
 import { findCategory } from '../categories.queries'
@@ -85,10 +85,18 @@ export class ListCategoryTasksUseCase {
     }
 
     const { data, total } = selectByCategory(this.database.db, ownerId, categoryId, parsed)
-    // ponytail: one link query per row (N+1), bounded by the page limit — same
-    // ceiling TasksService.list already carries. Fix both together or neither.
+
+    // The SAME batched helper `/tasks` uses, imported rather than reimplemented:
+    // both endpoints must agree on what a task's links are, and two copies is
+    // how they stop agreeing.
+    const links = findCategoryIdsByTask(
+      this.database.db,
+      ownerId,
+      data.map((task) => task.id),
+    )
+
     return {
-      data: data.map((task) => toTaskResponse(task, findCategoryIds(this.database.db, task.id))),
+      data: data.map((task) => toTaskResponse(task, links.get(task.id) ?? [])),
       total,
     }
   }

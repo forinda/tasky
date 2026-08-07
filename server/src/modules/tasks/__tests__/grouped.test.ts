@@ -11,7 +11,7 @@ import { authRateLimitStore } from '@/modules/auth/auth.controller'
 import { AuthModule } from '@/modules/auth/auth.module'
 import { CategoriesModule } from '@/modules/categories/categories.module'
 import { TasksModule } from '../tasks.module'
-import { findCategoryIds, insertTask, patchTask } from '../tasks.queries'
+import { findCategoryIds, insertTask, patchTask, selectGrouped } from '../tasks.queries'
 
 beforeEach(() => {
   Container.reset()
@@ -56,8 +56,16 @@ interface Column {
   tasks: { id: string; title: string; categoryIds: string[] }[]
 }
 
-const column = (body: Column[], name: string) =>
-  body.find((c) => c.category?.name === name) as Column
+/** The response is `{ columns, truncated }`, not a bare array — `truncated` is
+ *  the whole point: the cap is the server's number and the client must not
+ *  have to keep a copy of it to know whether it saw the whole board. */
+interface Board {
+  columns: Column[]
+  truncated: boolean
+}
+
+const column = (body: Board, name: string) =>
+  body.columns.find((c) => c.category?.name === name) as Column
 
 const titles = (col: Column) => col.tasks.map((t) => t.title).sort()
 
@@ -70,7 +78,10 @@ describe('GET /tasks/grouped', () => {
 
     // Declared after '/:id' this is a 404 for the task named "grouped".
     expect(res.status).toBe(200)
-    expect(Array.isArray(res.body)).toBe(true)
+    expect(Array.isArray(res.body.columns)).toBe(true)
+    // Stated, never inferred. An empty board is not truncated, and no client
+    // should have to sum the columns against a copy of the cap to learn that.
+    expect(res.body.truncated).toBe(false)
   })
 
   it('puts a task under its category', async () => {
@@ -122,12 +133,12 @@ describe('GET /tasks/grouped', () => {
     await newTask(expressApp, token, { title: 'Loose' })
 
     const res = await grouped(expressApp, token)
-    const last = res.body[res.body.length - 1] as Column
+    const last = res.body.columns[res.body.columns.length - 1] as Column
 
     expect(last.category).toBeNull()
     expect(titles(last)).toEqual(['Loose'])
     // Exactly one null bucket, and it is not also hiding in the middle.
-    expect(res.body.filter((c: Column) => c.category === null)).toHaveLength(1)
+    expect(res.body.columns.filter((c: Column) => c.category === null)).toHaveLength(1)
     expect(titles(column(res.body, 'Work'))).toEqual(['Filed'])
   })
 
@@ -150,7 +161,7 @@ describe('GET /tasks/grouped', () => {
     expect(body).not.toContain('AliceLoose')
     expect(body).not.toContain('AliceCategory')
     // Bob still gets his (empty) uncategorized bucket, not an empty array.
-    expect(res.body).toEqual([{ category: null, tasks: [] }])
+    expect(res.body).toEqual({ columns: [{ category: null, tasks: [] }], truncated: false })
   })
 })
 
@@ -182,6 +193,37 @@ function freshDb() {
 
   return database.db
 }
+
+describe('selectGrouped truncation', () => {
+  it('is exact at the boundary rather than a guess from a full page', () => {
+    const db = freshDb()
+    for (const title of ['one', 'two', 'three']) insertTask(db, 'owner-a', { title }, [])
+
+    // Three joined rows against a cap of three is FULL, not CUT. A
+    // `rows.length >= cap` guess — which is what the client used to compute —
+    // calls this truncated and warns about missing cards that do not exist.
+    const full = selectGrouped(db, 'owner-a', 3)
+    expect(full.truncated).toBe(false)
+    expect(full.rows).toHaveLength(3)
+
+    const cut = selectGrouped(db, 'owner-a', 2)
+    expect(cut.truncated).toBe(true)
+    // Still exactly `cap` rows: the surplus row that revealed the truncation
+    // is read and thrown away, never handed to the caller.
+    expect(cut.rows).toHaveLength(2)
+  })
+
+  it('counts JOINED rows, so one task in two categories spends two', () => {
+    const db = freshDb()
+    db.insert(categories).values({ id: 'cat-a2', ownerId: 'owner-a', name: 'Home' }).run()
+    insertTask(db, 'owner-a', { title: 'Both' }, ['cat-a1', 'cat-a2'])
+
+    // A single card, two links, two rows — so a cap of one truncates a board
+    // holding one task. That is the honest reading of a LIMIT on this join.
+    expect(selectGrouped(db, 'owner-a', 2).truncated).toBe(false)
+    expect(selectGrouped(db, 'owner-a', 1).truncated).toBe(true)
+  })
+})
 
 describe('patchTask with categories', () => {
   it('rolls back the column patch when the link step fails', () => {

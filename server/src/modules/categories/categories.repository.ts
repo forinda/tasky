@@ -1,7 +1,20 @@
-import { and, asc, count, desc, eq, like } from 'drizzle-orm'
+import { and, asc, count, desc, eq, sql, type SQL } from 'drizzle-orm'
+import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import { Autowired, Repository, type ParsedQuery } from '@forinda/kickjs'
 import { Database } from '@/db/database'
 import { categories, type Category } from '@/db/schema'
+
+/**
+ * A search term is LITERAL — `%` and `_` match themselves. Same rule and same
+ * reasoning as the tasks repository; kept local rather than shared because it
+ * is three lines and a shared helper would couple two repositories together.
+ * Drizzle's `like()` emits no ESCAPE clause, hence the raw sql. SQLite string
+ * literals have no backslash escape, so `'\'` is a one-character string.
+ */
+function likeContains(column: SQLiteColumn, term: string): SQL {
+  const pattern = `%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
+  return sql`${column} like ${pattern} escape '\\'`
+}
 
 export interface CreateCategoryInput {
   name: string
@@ -37,12 +50,15 @@ export class CategoriesRepository {
     // The owner predicate is part of the scope, not an extra filter layered on
     // — search narrows within it and can never widen past it.
     const scope = parsed.search
-      ? and(eq(categories.ownerId, ownerId), like(categories.name, `%${parsed.search}%`))
+      ? and(eq(categories.ownerId, ownerId), likeContains(categories.name, parsed.search))
       : eq(categories.ownerId, ownerId)
 
+    // `Object.hasOwn`, not `in`: `in` walks the prototype chain, so
+    // `constructor` and `toString` are "in" every object. Unknown fields fall
+    // back to the default ordering.
     const [sort] = parsed.sort
     const column =
-      sort && sort.field in SORTABLE
+      sort && Object.hasOwn(SORTABLE, sort.field)
         ? SORTABLE[sort.field as keyof typeof SORTABLE]
         : categories.createdAt
     const direction = sort?.direction === 'desc' ? desc : asc

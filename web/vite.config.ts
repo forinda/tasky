@@ -25,7 +25,13 @@ export default defineConfig({
     // and Vite forwards to the KickJS server. Same-origin in dev, same-origin
     // in production (SpaAdapter serves both) — which is why this project has
     // no CORS configuration anywhere.
-    proxy: { '/api': API_TARGET },
+    // `changeOrigin: false` keeps the browser's Host (localhost:5173) on the
+    // forwarded request. The API's CSRF check compares Origin against Host, and
+    // rewriting Host to the target makes every same-origin request look
+    // cross-origin — /auth/refresh answered 403 for the whole dev session.
+    // Production proxies are expected to preserve Host the same way
+    // (nginx: `proxy_set_header Host $host`).
+    proxy: { '/api': { target: API_TARGET, changeOrigin: false } },
   },
   preview: {
     port: 4173,

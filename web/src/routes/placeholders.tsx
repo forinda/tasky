@@ -1,29 +1,40 @@
 import { useQuery } from '@tanstack/react-query'
+import { Button } from '@/components/ui/button'
+import { Wordmark } from '@/components/landing/wordmark'
 import { authQueries } from '@/features/auth/queries'
-
-export function Login() {
-  return <main className="p-8">Login — Story 10.</main>
-}
-
-export function Signup() {
-  return <main className="p-8">Signup — Story 10.</main>
-}
+import { useLogout } from '@/features/auth/mutations'
 
 /**
  * Not the board — that is Story 11. This exists to prove the whole chain works:
  * typed client, dev proxy, token header, and TanStack Query, in one visible
  * place. If this renders an email, everything underneath is wired.
+ *
+ * Story 10 adds the sign-out control, because the auth loop cannot be exercised
+ * end to end without one.
  */
 export function Board() {
   const { data, error, isPending } = useQuery(authQueries.me())
-
-  if (isPending) return <main className="p-8">Loading…</main>
-  if (error) return <main className="p-8 text-muted-foreground">Not signed in.</main>
+  const logout = useLogout()
 
   return (
-    <main className="p-8">
-      <h1 className="text-2xl font-bold text-foreground">Board</h1>
-      <p className="text-muted-foreground">Signed in as {data.email}</p>
-    </main>
+    <div className="min-h-dvh bg-background text-foreground">
+      <header className="flex items-center justify-between border-b border-border px-5 py-4 sm:px-8">
+        <Wordmark />
+        <Button variant="ghost" size="sm" onClick={() => logout.mutate()} disabled={logout.isPending}>
+          {logout.isPending ? 'Signing out…' : 'Sign out'}
+        </Button>
+      </header>
+
+      <main className="p-8">
+        {isPending ? <p className="text-muted-foreground">Loading…</p> : null}
+        {error ? <p className="text-muted-foreground">Not signed in.</p> : null}
+        {data ? (
+          <>
+            <h1 className="font-display text-2xl font-bold">Board</h1>
+            <p className="text-muted-foreground">Signed in as {data.email}</p>
+          </>
+        ) : null}
+      </main>
+    </div>
   )
 }

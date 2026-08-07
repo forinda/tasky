@@ -80,7 +80,7 @@ export function Combobox({
             disabled={disabled}
             aria-label={ariaLabel}
             className={cn(
-              'flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
+              'flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
               triggerClassName,
             )}
           >
@@ -121,7 +121,7 @@ export function Combobox({
             <Command>
               <CommandInput
                 placeholder={searchPlaceholder}
-                className="w-full border-b bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
+                className="w-full border-b bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground"
               />
               <CommandList className="max-h-64 overflow-y-auto p-1">
                 <CommandEmpty className="px-2 py-3 text-center type-meta text-muted-foreground">

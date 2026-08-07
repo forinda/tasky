@@ -209,18 +209,6 @@
     @apply bg-background text-foreground;
   }
 
-  /* Defined once so every component inherits it, including shadcn's.
-     `:focus-visible`, not `:focus` — a mouse user clicking a button should not
-     see a ring; a keyboard user tabbing to it must. Nothing in this codebase
-     may set `outline: none`; override the colour if you need to, never remove
-     the ring. Declared after the `*` rule above so the full-strength ring wins
-     over its 50% placeholder. */
-  :focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 2px;
-    border-radius: 2px;
-  }
-
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -231,6 +219,28 @@
       scroll-behavior: auto !important;
     }
   }
+}
+
+/* The focus ring, deliberately OUTSIDE every `@layer`.
+ *
+ * Unlayered rules outrank all layered ones, so this beats any Tailwind utility.
+ * That is the point: shadcn's controls ship `outline-none` and replace it with
+ * a ring built from border colour, and on a field that is already red from
+ * `aria-invalid` the "ring" was a red border turning a slightly different red.
+ * Focus was effectively invisible on exactly the fields a keyboard user is
+ * trying to fix.
+ *
+ * `:focus-visible`, not `:focus` — a mouse user clicking a button should not
+ * see a ring; a keyboard user tabbing to it must.
+ *
+ * Being unlayered defeats plain utilities such as Tailwind's `outline-none`,
+ * which is how the ring went missing. It does NOT defeat `!important`, and
+ * nothing in CSS would — that remains a convention, not a guarantee.
+ */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 @keyframes rise {

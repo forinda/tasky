@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "pnpm --parallel -r run dev",
     "dev:server": "pnpm --filter ./server dev",
+    "dev:web": "pnpm --filter ./web dev",
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck"
   },
   "workspaces": [
-    "server"
+    "server",
+    "web"
   ]
 }

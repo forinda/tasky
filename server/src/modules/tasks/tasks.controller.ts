@@ -1,9 +1,19 @@
-import { Autowired, Controller, Delete, Get, Post, Put, reply, type Ctx } from '@forinda/kickjs'
+import {
+  Autowired,
+  Controller,
+  Delete,
+  Get,
+  Post,
+  Put,
+  reply,
+  type Ctx,
+  type PaginatedResponse,
+} from '@forinda/kickjs'
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@forinda/kickjs-swagger'
 import { createTaskSchema } from './dtos/create-task.dto'
 import { updateTaskSchema } from './dtos/update-task.dto'
 import { TASK_QUERY_CONFIG } from './tasks.constants'
-import { TasksService } from './tasks.service'
+import { TasksService, type TaskResponse } from './tasks.service'
 
 /** Class-level bearer security: every route here is protected. */
 @Controller()
@@ -12,12 +22,25 @@ import { TasksService } from './tasks.service'
 export class TasksController {
   @Autowired() private readonly tasks!: TasksService
 
+  /**
+   * The return type is annotated because `ctx.paginate` is declared
+   * `Promise<RuntimeResponse>` — it erases the payload type, so every paginated
+   * route reached `kick typegen` as an opaque blob and the client could not see
+   * `.data` at all.
+   *
+   * Declaring the envelope here fixes it for every consumer at once, which is
+   * the right place: the server is what knows the shape. The cast is the narrow
+   * part — `paginate` really does emit exactly this.
+   */
   @Get('/')
-  async list(ctx: Ctx) {
+  async list(ctx: Ctx): Promise<PaginatedResponse<TaskResponse>> {
     // ownerId comes from the verified token, never from the body or a query
     // parameter. An owner id accepted from the request is not an owner id.
     const owner = ctx.require('currentUser')
-    return ctx.paginate((parsed) => this.tasks.list(owner.id, parsed), TASK_QUERY_CONFIG)
+    return (await ctx.paginate(
+      (parsed) => this.tasks.list(owner.id, parsed),
+      TASK_QUERY_CONFIG,
+    )) as unknown as PaginatedResponse<TaskResponse>
   }
 
   // BEFORE '/:id', or the param route matches first and 'grouped' is read as a

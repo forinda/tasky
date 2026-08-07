@@ -37,6 +37,19 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
 const LABELS = { priority: PRIORITY_LABELS, status: STATUS_LABELS }
 
 /**
+ * The runtime lists, derived from those exhaustive Records.
+ *
+ * `@/db/schema` resolves for TYPES in this package but not at runtime — the
+ * alias reaches into the server's source, which is never bundled. Importing
+ * `TASK_STATUSES` here type-checks and then fails the build with a missing
+ * module, which is exactly what happened twice. Read the keys instead; they
+ * cannot drift, because the Record above will not compile if the server's enum
+ * gains a member.
+ */
+export const PRIORITIES = Object.keys(PRIORITY_LABELS) as TaskPriority[]
+export const STATUSES = Object.keys(STATUS_LABELS) as TaskStatus[]
+
+/**
  * Colour is carried by a dot rather than a filled background: the board shows
  * dozens of these at once, and filled chips at that density read as confetti.
  */

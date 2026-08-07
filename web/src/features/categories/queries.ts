@@ -27,24 +27,25 @@ export const categoryQueries = {
    * category" is a materially different decision from "0 tasks will", and
    * without it the dialog has to speak in the abstract.
    *
-   * ponytail: `/tasks/grouped` caps at 500 JOINED rows server-side
-   * (GROUPED_CAP in tasks.service.ts) and the response carries no truncation
-   * flag, so past that a count silently reads low. Fine for a personal board;
-   * if it ever bites, the fix belongs on the server as a real count column on
-   * `GET /categories`, not as more requests from here.
+   * ponytail: `/tasks/grouped` caps at a fixed number of JOINED rows
+   * server-side, so past that a count silently reads low. The response now says
+   * `truncated` when that happens — this screen still ignores it, because a
+   * count that is quietly capped is only wrong on a board far larger than a
+   * personal one. If it ever bites, the fix belongs on the server as a real
+   * count column on `GET /categories`, not as more requests from here.
    */
   counts: () =>
     queryOptions({
       queryKey: categoryKeys.counts(),
       queryFn: async () => {
-        const groups = await api.get('/tasks/grouped')
+        const { columns } = await api.get('/tasks/grouped')
         // The last group is the uncategorized bucket, whose `category` is null;
         // it has no row on this screen, so it drops out here rather than
         // needing a guard at the call site.
         return new Map(
-          groups
-            .filter((g) => g.category !== null)
-            .map((g) => [g.category!.id, g.tasks.length] as const),
+          columns
+            .filter((c) => c.category !== null)
+            .map((c) => [c.category!.id, c.tasks.length] as const),
         )
       },
     }),

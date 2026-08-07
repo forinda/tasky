@@ -68,7 +68,7 @@ export class TasksController {
   @Get('/grouped')
   @ApiOperation({
     description:
-      'Board view, not paginated. A task in several categories appears in each of those columns, and the 500 cap counts joined rows, so each of those links spends one.',
+      'Board view, not paginated: `{ columns, truncated }`. A task in several categories appears in each of those columns, and the cap counts joined rows, so each of those links spends one. `truncated` says whether the cap was hit — the client never needs to know the number.',
   })
   async grouped() {
     return this.groupTasks.execute()

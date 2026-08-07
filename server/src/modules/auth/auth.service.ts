@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { Autowired, HttpException, Service } from '@forinda/kickjs'
-import type { User } from '../../db/schema'
+import type { User } from '@/db/schema'
 import { UsersRepository } from './users.repository'
 import { Tokens } from './tokens'
 import { hashPassword, verifyPassword } from './password'

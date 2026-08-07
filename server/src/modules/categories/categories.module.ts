@@ -1,5 +1,5 @@
 import { defineModule } from '@forinda/kickjs'
-import { CurrentUser } from '../../contributors/current-user.contributor'
+import { CurrentUser } from '@/contributors/current-user.contributor'
 import { CategoriesController } from './categories.controller'
 
 import.meta.glob(

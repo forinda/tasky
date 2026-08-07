@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import request from 'supertest'
 import { Container } from '@forinda/kickjs'
 import { createTestApp } from '@forinda/kickjs-testing'
-import { SqliteAdapter } from '../../../adapters/sqlite.adapter'
-import { AuthModule } from '../../auth/auth.module'
+import { SqliteAdapter } from '@/adapters/sqlite.adapter'
+import { AuthModule } from '@/modules/auth/auth.module'
 import { CategoriesModule } from '../categories.module'
 
 beforeEach(() => {

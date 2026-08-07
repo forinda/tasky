@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { Autowired, Repository } from '@forinda/kickjs'
-import { Database } from '../../db/database'
-import { users, type User } from '../../db/schema'
+import { Database } from '@/db/database'
+import { users, type User } from '@/db/schema'
 
 export interface CreateUserInput {
   email: string

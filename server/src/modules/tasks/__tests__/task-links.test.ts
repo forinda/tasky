@@ -4,7 +4,13 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { resolve } from 'node:path'
 import { Database } from '@/db/database'
 import { categories, taskCategories, tasks, users } from '@/db/schema'
-import { TasksRepository } from '../tasks.repository'
+import {
+  deleteTask,
+  findCategoryIds,
+  insertTask,
+  ownedCategoryIds,
+  replaceCategories,
+} from '../tasks.queries'
 
 const MIGRATIONS = resolve(import.meta.dirname, '../../../db/migrations')
 
@@ -38,70 +44,70 @@ function fresh() {
     ])
     .run()
 
-  return { repo: new TasksRepository(database), database }
+  return database.db
 }
 
 describe('task category links', () => {
   it('writes a join row per category on create', () => {
-    const { repo } = fresh()
-    const task = repo.createWithCategories('owner-a', { title: 'Ship' }, ['cat-a1', 'cat-a2'])
+    const db = fresh()
+    const task = insertTask(db, 'owner-a', { title: 'Ship' }, ['cat-a1', 'cat-a2'])
 
-    expect(repo.findCategoryIds(task.id).sort()).toEqual(['cat-a1', 'cat-a2'])
+    expect(findCategoryIds(db, task.id).sort()).toEqual(['cat-a1', 'cat-a2'])
   })
 
   it('creates with no categories when none are given', () => {
-    const { repo } = fresh()
-    const task = repo.createWithCategories('owner-a', { title: 'Ship' }, [])
+    const db = fresh()
+    const task = insertTask(db, 'owner-a', { title: 'Ship' }, [])
 
-    expect(repo.findCategoryIds(task.id)).toEqual([])
+    expect(findCategoryIds(db, task.id)).toEqual([])
   })
 
   it('replaces the category set wholesale rather than merging', () => {
-    const { repo } = fresh()
-    const task = repo.createWithCategories('owner-a', { title: 'Ship' }, ['cat-a1', 'cat-a2'])
+    const db = fresh()
+    const task = insertTask(db, 'owner-a', { title: 'Ship' }, ['cat-a1', 'cat-a2'])
 
-    expect(repo.replaceCategories(task.id, 'owner-a', ['cat-a2', 'cat-a3'])).toBe(true)
+    expect(replaceCategories(db, task.id, 'owner-a', ['cat-a2', 'cat-a3'])).toBe(true)
 
     // cat-a1 must be gone. A merge would leave all three.
-    expect(repo.findCategoryIds(task.id).sort()).toEqual(['cat-a2', 'cat-a3'])
+    expect(findCategoryIds(db, task.id).sort()).toEqual(['cat-a2', 'cat-a3'])
   })
 
   it('clears all links when given an empty set', () => {
-    const { repo, database } = fresh()
-    const task = repo.createWithCategories('owner-a', { title: 'Ship' }, ['cat-a1'])
+    const db = fresh()
+    const task = insertTask(db, 'owner-a', { title: 'Ship' }, ['cat-a1'])
 
-    expect(repo.replaceCategories(task.id, 'owner-a', [])).toBe(true)
-    expect(repo.findCategoryIds(task.id)).toEqual([])
+    expect(replaceCategories(db, task.id, 'owner-a', [])).toBe(true)
+    expect(findCategoryIds(db, task.id)).toEqual([])
     // The task itself survives.
-    expect(database.db.select().from(tasks).all()).toHaveLength(1)
+    expect(db.select().from(tasks).all()).toHaveLength(1)
   })
 
   it('refuses to replace links on another owner’s task', () => {
-    const { repo } = fresh()
-    const task = repo.createWithCategories('owner-a', { title: 'Ship' }, ['cat-a1'])
+    const db = fresh()
+    const task = insertTask(db, 'owner-a', { title: 'Ship' }, ['cat-a1'])
 
-    expect(repo.replaceCategories(task.id, 'owner-b', ['cat-b1'])).toBe(false)
-    expect(repo.findCategoryIds(task.id)).toEqual(['cat-a1'])
+    expect(replaceCategories(db, task.id, 'owner-b', ['cat-b1'])).toBe(false)
+    expect(findCategoryIds(db, task.id)).toEqual(['cat-a1'])
   })
 
   it('writes NOTHING when a link fails part-way', () => {
-    const { repo, database } = fresh()
+    const db = fresh()
 
     // The second id does not exist, so the join insert violates the foreign
     // key AFTER the task row has been inserted. Without a transaction the task
     // survives with no links — a half-written record.
     expect(() =>
-      repo.createWithCategories('owner-a', { title: 'Ship' }, ['cat-a1', 'ghost-category']),
+      insertTask(db, 'owner-a', { title: 'Ship' }, ['cat-a1', 'ghost-category']),
     ).toThrow()
 
-    expect(database.db.select().from(tasks).all()).toHaveLength(0)
-    expect(database.db.select().from(taskCategories).all()).toHaveLength(0)
+    expect(db.select().from(tasks).all()).toHaveLength(0)
+    expect(db.select().from(taskCategories).all()).toHaveLength(0)
   })
 
   it('reports which of the given ids the owner actually holds', () => {
-    const { repo } = fresh()
+    const db = fresh()
 
-    const owned = repo.ownedCategoryIds('owner-a', ['cat-a1', 'cat-b1', 'ghost'])
+    const owned = ownedCategoryIds(db, 'owner-a', ['cat-a1', 'cat-b1', 'ghost'])
 
     // Another owner's id and a nonexistent id are both simply absent — the
     // caller cannot tell them apart, which is what keeps the 422 from becoming
@@ -110,17 +116,17 @@ describe('task category links', () => {
   })
 
   it('returns an empty list for an empty request', () => {
-    const { repo } = fresh()
-    expect(repo.ownedCategoryIds('owner-a', [])).toEqual([])
+    const db = fresh()
+    expect(ownedCategoryIds(db, 'owner-a', [])).toEqual([])
   })
 
-  it('drops join rows when the task is deleted, leaving the categories', async () => {
-    const { repo, database } = fresh()
-    const task = repo.createWithCategories('owner-a', { title: 'Ship' }, ['cat-a1', 'cat-a2'])
+  it('drops join rows when the task is deleted, leaving the categories', () => {
+    const db = fresh()
+    const task = insertTask(db, 'owner-a', { title: 'Ship' }, ['cat-a1', 'cat-a2'])
 
-    expect(await repo.remove(task.id, 'owner-a')).toBe(true)
+    expect(deleteTask(db, task.id, 'owner-a')).toBe(true)
 
-    expect(database.db.select().from(taskCategories).all()).toHaveLength(0)
-    expect(database.db.select().from(categories).all()).toHaveLength(4)
+    expect(db.select().from(taskCategories).all()).toHaveLength(0)
+    expect(db.select().from(categories).all()).toHaveLength(4)
   })
 })

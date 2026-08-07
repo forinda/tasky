@@ -1,13 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Mocked before importing AuthService so the module-load DUMMY_HASH uses it too.
+// Mocked before importing LoginUseCase so the module-load DUMMY_HASH uses it too.
 vi.mock('../password', () => ({
   hashPassword: vi.fn(async (plain: string) => `hashed:${plain}`),
   verifyPassword: vi.fn(async () => false),
 }))
 
+// The use case reaches the database through plain query functions, so the
+// database itself is stubbed out at that seam rather than with a repository.
+vi.mock('../auth.queries', () => ({
+  findUserByEmail: vi.fn(async () => null),
+  issueSession: vi.fn(async () => ({ rowId: 'row-1' })),
+}))
+
 const { hashPassword, verifyPassword } = await import('../password')
-const { AuthService } = await import('../auth.service')
+const { findUserByEmail } = await import('../auth.queries')
+const { LoginUseCase } = await import('../use-cases/login.use-case')
 
 /**
  * The enumeration defence is "both branches do the same work". Asserting that
@@ -17,13 +25,10 @@ const { AuthService } = await import('../auth.service')
  * measurably slower (37ms vs 58ms when audited).
  */
 describe('login does equal work on both branches', () => {
-  const tokens = {
-    signAccess: vi.fn(async () => 'tok'),
-    mintRefresh: vi.fn(() => ({ token: 'r', hash: 'h', expiresAt: new Date(Date.now() + 1000) })),
-  } as never
-  // The login path stores a refresh token on success. Both cases here fail
-  // before that point, but the constructor needs the collaborator either way.
-  const refreshTokens = { create: vi.fn(async () => ({ id: 'row-1' })) } as never
+  // Neither collaborator is reached: both cases fail before a session is
+  // issued. The constructor needs them either way.
+  const database = {} as never
+  const tokens = {} as never
 
   beforeEach(() => {
     vi.mocked(hashPassword).mockClear()
@@ -31,26 +36,20 @@ describe('login does equal work on both branches', () => {
   })
 
   it('calls verifyPassword exactly once and hashPassword never — known email', async () => {
-    const users = {
-      findByEmail: async () => ({ id: 'u1', passwordHash: 'stored' }),
-    } as never
-    const service = new AuthService(users, tokens, refreshTokens)
+    vi.mocked(findUserByEmail).mockResolvedValue({ id: 'u1', passwordHash: 'stored' } as never)
+    const useCase = new LoginUseCase(database, tokens)
 
-    await expect(
-      service.login({ email: 'known@example.com', password: 'x' }),
-    ).rejects.toThrow()
+    await expect(useCase.execute({ email: 'known@example.com', password: 'x' })).rejects.toThrow()
 
     expect(vi.mocked(verifyPassword)).toHaveBeenCalledTimes(1)
     expect(vi.mocked(hashPassword)).not.toHaveBeenCalled()
   })
 
   it('calls verifyPassword exactly once and hashPassword never — unknown email', async () => {
-    const users = { findByEmail: async () => null } as never
-    const service = new AuthService(users, tokens, refreshTokens)
+    vi.mocked(findUserByEmail).mockResolvedValue(null)
+    const useCase = new LoginUseCase(database, tokens)
 
-    await expect(
-      service.login({ email: 'nobody@example.com', password: 'x' }),
-    ).rejects.toThrow()
+    await expect(useCase.execute({ email: 'nobody@example.com', password: 'x' })).rejects.toThrow()
 
     // The old code called hashPassword here, and only here. That asymmetry
     // was the oracle.

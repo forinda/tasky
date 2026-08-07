@@ -12,7 +12,11 @@ import {
 } from '@forinda/kickjs'
 import { ApiBearerAuth, ApiPublic, ApiTags } from '@forinda/kickjs-swagger'
 import { CurrentUser } from '@/contributors/current-user.contributor'
-import { AuthService, type AuthResult } from './auth.service'
+import type { AuthResult } from './auth.queries'
+import { SignupUseCase } from './signup.use-case'
+import { LoginUseCase } from './login.use-case'
+import { RefreshUseCase } from './refresh.use-case'
+import { LogoutUseCase } from './logout.use-case'
 import {
   clearRefreshCookie,
   isOriginAllowed,
@@ -115,7 +119,10 @@ function assertSameOrigin(ctx: Ctx) {
 
 @Controller()
 export class AuthController {
-  @Autowired() private readonly auth!: AuthService
+  @Autowired() private readonly signupUseCase!: SignupUseCase
+  @Autowired() private readonly loginUseCase!: LoginUseCase
+  @Autowired() private readonly refreshUseCase!: RefreshUseCase
+  @Autowired() private readonly logoutUseCase!: LogoutUseCase
 
   // Explicitly public rather than merely undecorated — absence of a security
   // decorator reads as an oversight, @ApiPublic() reads as a decision.
@@ -124,7 +131,7 @@ export class AuthController {
   @ApiPublic()
   @Middleware(authLimit())
   async signup(ctx: Ctx) {
-    return reply.created(respondWithSession(ctx, await this.auth.signup(ctx.body)))
+    return reply.created(respondWithSession(ctx, await this.signupUseCase.execute(ctx.body)))
   }
 
   @Post('/login', { body: loginSchema, name: 'Login' })
@@ -132,7 +139,7 @@ export class AuthController {
   @ApiPublic()
   @Middleware(authLimit())
   async login(ctx: Ctx) {
-    return respondWithSession(ctx, await this.auth.login(ctx.body))
+    return respondWithSession(ctx, await this.loginUseCase.execute(ctx.body))
   }
 
   /**
@@ -152,7 +159,7 @@ export class AuthController {
     const presented = readRefreshCookie(ctx.headers.cookie)
     if (!presented) throw HttpException.unauthorized('Invalid or expired session')
 
-    return respondWithSession(ctx, await this.auth.refresh(presented))
+    return respondWithSession(ctx, await this.refreshUseCase.execute(presented))
   }
 
   @Post('/logout', { name: 'Logout' })
@@ -163,7 +170,7 @@ export class AuthController {
 
     // Revoke first, then clear. If clearing succeeded and revoking failed, the
     // browser would look signed out while the token stayed valid.
-    await this.auth.logout(readRefreshCookie(ctx.headers.cookie))
+    await this.logoutUseCase.execute(readRefreshCookie(ctx.headers.cookie))
     clearRefreshCookie(ctx.res)
 
     return reply.noContent()

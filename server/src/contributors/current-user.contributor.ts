@@ -1,7 +1,7 @@
 import { HttpException, defineHttpContextDecorator } from '@forinda/kickjs'
-import { UsersRepository } from '../modules/auth/users.repository'
+import { Database } from '../db/database'
 import { Tokens } from '../modules/auth/tokens'
-import { toPublicUser, type PublicUser } from '../modules/auth/auth.service'
+import { findUserById, toPublicUser, type PublicUser } from '../modules/auth/auth.queries'
 
 // Registers the key so `ctx.require('currentUser')` is typed.
 declare module '@forinda/kickjs' {
@@ -22,8 +22,8 @@ declare module '@forinda/kickjs' {
  */
 export const CurrentUser = defineHttpContextDecorator({
   key: 'currentUser',
-  deps: { tokens: Tokens, users: UsersRepository },
-  resolve: async (ctx, { tokens, users }) => {
+  deps: { tokens: Tokens, database: Database },
+  resolve: async (ctx, { tokens, database }) => {
     const header = ctx.headers.authorization
     if (!header?.startsWith('Bearer ')) {
       throw HttpException.unauthorized('Missing or malformed Authorization header')
@@ -34,7 +34,7 @@ export const CurrentUser = defineHttpContextDecorator({
 
     // A token can outlive its user. Treat a deleted account as unauthenticated
     // rather than letting a valid signature imply a valid user.
-    const user = await users.findById(subject)
+    const user = await findUserById(database, subject)
     if (!user) throw HttpException.unauthorized('Invalid or expired token')
 
     return toPublicUser(user)

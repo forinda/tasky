@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -65,6 +65,27 @@ export function Board() {
   const { filters, setFilter, clearAll, isFiltered, view, setView } = useBoardFilters()
   const [sheet, setSheet] = useState<SheetState>({ mode: 'closed' })
 
+  /**
+   * What to put focus back on when the sheet closes.
+   *
+   * Radix restores focus to a `Trigger`, and this sheet has none — it opens
+   * programmatically from a card click. Without this, closing dropped focus to
+   * `<body>` and the next Tab restarted at the top of the page, which for a
+   * keyboard user means losing their place on every task they inspect.
+   */
+  const returnFocusTo = useRef<HTMLElement | null>(null)
+
+  const openSheet = (next: SheetState) => {
+    returnFocusTo.current = document.activeElement as HTMLElement | null
+    setSheet(next)
+  }
+
+  const closeSheet = () => {
+    setSheet({ mode: 'closed' })
+    // After the sheet unmounts, or Radix's own focus handling wins the race.
+    requestAnimationFrame(() => returnFocusTo.current?.focus())
+  }
+
   const categories = useQuery(categoryQueries.list())
   const categoryList = (categories.data?.data ?? []) as BoardCategory[]
   const categoryNames = new Map(categoryList.map((c) => [c.id, c.name]))
@@ -123,7 +144,17 @@ export function Board() {
       // unambiguous.
       activationConstraint: { delay: 200, tolerance: 8 },
     }),
-    useSensor(KeyboardSensor, { coordinateGetter: boardKeyboardCoordinates }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: boardKeyboardCoordinates,
+      // Space starts and ends a drag; Enter is left alone.
+      //
+      // dnd-kit's default claims BOTH keys and calls preventDefault(), so the
+      // card's onClick never fired and a keyboard user could not open a task on
+      // the status board at all. Story 12 checked that Space does not open the
+      // sheet and never checked that Enter still does — the gesture that was
+      // added was tested, the one it silently took over was not.
+      keyboardCodes: { start: ['Space'], cancel: ['Escape'], end: ['Space'] },
+    }),
   )
 
   const announcements = buildAnnouncements(
@@ -226,7 +257,7 @@ export function Board() {
           <h1 className="font-display text-2xl font-bold tracking-[-0.02em]">Board</h1>
           <div className="flex items-center gap-2">
             <ViewToggle view={view} onChange={setView} />
-            <Button size="sm" onClick={() => setSheet({ mode: 'create', status: 'todo' })}>
+            <Button size="sm" onClick={() => openSheet({ mode: 'create', status: 'todo' })}>
               Add task
             </Button>
           </div>
@@ -283,7 +314,7 @@ export function Board() {
                       categoryNames={categoryNames}
                       isPending={grouped.isPending}
                       isFiltered={isFiltered}
-                      onOpen={(id) => setSheet({ mode: 'edit', id })}
+                      onOpen={(id) => openSheet({ mode: 'edit', id })}
                       onClearFilters={clearAll}
                     />
                   ))}
@@ -315,8 +346,8 @@ export function Board() {
                       isPending={query?.isPending ?? true}
                       isError={query?.isError ?? false}
                       isFiltered={isFiltered}
-                      onAdd={(s) => setSheet({ mode: 'create', status: s })}
-                      onOpen={(id) => setSheet({ mode: 'edit', id })}
+                      onAdd={(s) => openSheet({ mode: 'create', status: s })}
+                      onOpen={(id) => openSheet({ mode: 'edit', id })}
                       onClearFilters={clearAll}
                     />
                   )
@@ -346,7 +377,7 @@ export function Board() {
       <TaskSheet
         state={sheet}
         categories={(categories.data?.data ?? []) as Array<{ id: string; name: string }>}
-        onClose={() => setSheet({ mode: 'closed' })}
+        onClose={closeSheet}
       />
     </div>
   )

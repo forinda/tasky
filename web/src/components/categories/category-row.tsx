@@ -93,12 +93,21 @@ export function CategoryRow({
       )}
       <div className="flex shrink-0 items-center gap-1">
         {/* Named for the row they act on. Two rows of bare "Rename" buttons are
-            indistinguishable to a screen reader reading the button list. */}
+            indistinguishable to a screen reader reading the button list.
+
+            The space lives OUTSIDE the sr-only span. The accessible-name
+            algorithm trims each text node before joining them, so
+            `Rename<span> Design</span>` computes as "RenameDesign" and is
+            announced as one word. A JSX `{' '}` between the nodes survives that
+            trim. Found by a test asserting the accessible name rather than the
+            visible text — the visible text looked correct throughout. */}
         <Button variant="ghost" size="sm" onClick={onEdit}>
-          Rename<span className="sr-only"> {category.name}</span>
+          Rename{' '}
+          <span className="sr-only">{category.name}</span>
         </Button>
         <Button variant="ghost" size="sm" onClick={onDelete}>
-          Delete<span className="sr-only"> {category.name}</span>
+          Delete{' '}
+          <span className="sr-only">{category.name}</span>
         </Button>
       </div>
     </li>
